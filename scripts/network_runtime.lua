@@ -4,15 +4,21 @@ local network_config = require("scripts.network_config")
 -- Core runtime module for cable topology, terminal storage, and item routing.
 local CABLE_NAME = "network-cable"
 local ABSORBER_CABLE_NAME = "network-absorber-cable"
+local FLUID_INPUT_NAME = "network-fluid-input"
+local FLUID_OUTPUT_NAME = "network-fluid-output"
+local FLUID_OUTPUT_BLUEPRINT_TAG = "items_network_selected_fluid_name"
 local TERMINAL_NAME = "network-terminal"
 local BUFFER_CHEST_NAME = "network-buffer-chest"
+local FLUID_PIPE_TRANSFER_AMOUNT = 5000
 local NETWORK_TICK_INTERVAL = 1
 local NETWORK_PERIODIC_UPDATE_INTERVAL_TICKS = 60
 local BUFFER_CHEST_REQUEST_INTERVAL_TICKS = 60
 local MACHINE_INPUT_BUFFER_CACHE_TICKS = 120
+local NETWORK_REF_AUDIT_BATCH_SIZE = 2
 local DEFERRED_REBUILD_INTERVAL_TICKS = 20
 local MAX_SURFACE_REBUILDS_PER_FLUSH = 1
 local VISUAL_REBUILD_DELAY_TICKS = 120
+local TERMINAL_SIGNAL_SECTION_CAPACITY = 100
 local VISUAL_CONNECTION_COLOR = { r = 0.2, g = 0.9, b = 1.0, a = 0.9 }
 local VISUAL_CONNECTION_WIDTH = 5
 local VISUAL_CONNECTION_INSET = 0.16
@@ -20,12 +26,14 @@ local VISUAL_CONNECTION_INSET = 0.16
 local MACHINE_TYPES = {
 	"assembling-machine",
 	"furnace",
+	"lab",
 	"mining-drill",
 }
 
 local MACHINE_TYPE_SET = {
 	["assembling-machine"] = true,
 	["furnace"] = true,
+	["lab"] = true,
 	["mining-drill"] = true,
 }
 
@@ -70,10 +78,12 @@ local function ensure_storage()
 	-- All persistent runtime state is kept in `storage` so it survives saves and reloads.
 	storage.cable_positions = storage.cable_positions or {}
 	storage.terminal_data = storage.terminal_data or {}
+	storage.fluid_output_data = storage.fluid_output_data or {}
 	storage.connection_render_ids_by_surface = storage.connection_render_ids_by_surface or {}
 	storage.network_numeric_ids_by_surface = storage.network_numeric_ids_by_surface or {}
 	storage.pending_surface_rebuilds = storage.pending_surface_rebuilds or {}
 	storage.pending_surface_visual_refreshes = storage.pending_surface_visual_refreshes or {}
+	storage.pending_signal_updates = storage.pending_signal_updates or {}
 	storage.next_pending_rebuild_tick = storage.next_pending_rebuild_tick or 0
 	storage.next_network_numeric_id = storage.next_network_numeric_id or 1
 	storage.networks_by_surface = storage.networks_by_surface or {}
@@ -136,6 +146,22 @@ local function is_buffer_chest_entity(entity)
 		or false
 end
 
+local function is_fluid_input_entity(entity)
+	return entity
+		and entity.valid
+		and entity.unit_number
+		and entity.name == FLUID_INPUT_NAME
+		or false
+end
+
+local function is_fluid_output_entity(entity)
+	return entity
+		and entity.valid
+		and entity.unit_number
+		and entity.name == FLUID_OUTPUT_NAME
+		or false
+end
+
 local function is_supported_machine(entity)
 	return entity and entity.valid and MACHINE_TYPE_SET[entity.type] == true
 end
@@ -148,6 +174,8 @@ local function is_topology_entity(entity)
 
 	return entity.name == CABLE_NAME
 		or entity.name == ABSORBER_CABLE_NAME
+		or entity.name == FLUID_INPUT_NAME
+		or entity.name == FLUID_OUTPUT_NAME
 		or is_terminal_entity(entity)
 		or is_buffer_chest_entity(entity)
 		or MACHINE_TYPE_SET[entity.type] == true
@@ -166,22 +194,60 @@ local function record_terminal(entity, existing_terminal_data)
 		surface_index = entity.surface.index,
 		position_key = make_position_key(grid_x, grid_y),
 		network_id = nil,
+		signal_output_active = existing_terminal_data and existing_terminal_data.signal_output_active or false,
 		virtual_item_map = existing_terminal_data and existing_terminal_data.virtual_item_map or {},
 		virtual_total_items = existing_terminal_data and existing_terminal_data.virtual_total_items or 0,
+		virtual_fluid_map = existing_terminal_data and existing_terminal_data.virtual_fluid_map or {},
+		virtual_total_fluids = existing_terminal_data and existing_terminal_data.virtual_total_fluids or 0,
 	}
+end
+
+local function record_fluid_output(entity, existing_fluid_output_data)
+	if not is_fluid_output_entity(entity) then
+		return
+	end
+
+	local grid_x, grid_y = entity_grid_position(entity)
+
+	storage.fluid_output_data[entity.unit_number] = {
+		entity = entity,
+		unit_number = entity.unit_number,
+		surface_index = entity.surface.index,
+		position_key = make_position_key(grid_x, grid_y),
+		network_id = nil,
+		selected_fluid_name = existing_fluid_output_data and existing_fluid_output_data.selected_fluid_name or nil,
+	}
+end
+
+local function ensure_fluid_output_data(entity)
+	if not is_fluid_output_entity(entity) then
+		return nil
+	end
+
+	local fluid_output_data = storage.fluid_output_data[entity.unit_number]
+
+	if not (fluid_output_data and fluid_output_data.entity and fluid_output_data.entity.valid) then
+		record_fluid_output(entity, fluid_output_data)
+		fluid_output_data = storage.fluid_output_data[entity.unit_number]
+	end
+
+	return fluid_output_data
 end
 
 local function rescan_surface_entities(surface)
 	-- Rebuild the live cable and terminal cache for one surface before network assembly.
 	local cable_positions = {}
 	local existing_terminal_data_by_unit = {}
+	local existing_fluid_output_data_by_unit = {}
 
-	for _, cable in ipairs(surface.find_entities_filtered({ name = { CABLE_NAME, ABSORBER_CABLE_NAME } })) do
+	for _, cable in ipairs(surface.find_entities_filtered({ name = { CABLE_NAME, ABSORBER_CABLE_NAME, FLUID_INPUT_NAME, FLUID_OUTPUT_NAME } })) do
 		local grid_x, grid_y = entity_grid_position(cable)
 		cable_positions[make_position_key(grid_x, grid_y)] = {
 			x = grid_x,
 			y = grid_y,
 			is_absorber = cable.name == ABSORBER_CABLE_NAME,
+			is_fluid_input = cable.name == FLUID_INPUT_NAME,
+			is_fluid_output = cable.name == FLUID_OUTPUT_NAME,
 		}
 	end
 
@@ -194,8 +260,19 @@ local function rescan_surface_entities(surface)
 		end
 	end
 
+	for unit_number, fluid_output_data in pairs(storage.fluid_output_data) do
+		if fluid_output_data.surface_index == surface.index then
+			existing_fluid_output_data_by_unit[unit_number] = fluid_output_data
+			storage.fluid_output_data[unit_number] = nil
+		end
+	end
+
 	for _, terminal in ipairs(surface.find_entities_filtered({ name = TERMINAL_NAME })) do
 		record_terminal(terminal, existing_terminal_data_by_unit[terminal.unit_number])
+	end
+
+	for _, fluid_output in ipairs(surface.find_entities_filtered({ name = FLUID_OUTPUT_NAME })) do
+		record_fluid_output(fluid_output, existing_fluid_output_data_by_unit[fluid_output.unit_number])
 	end
 
 end
@@ -407,12 +484,21 @@ local function build_surface_networks(surface)
 				surface_index = surface.index,
 				cable_keys = cable_keys,
 				absorber_cable_keys = {},
+				fluid_input_keys = {},
+				fluid_output_keys = {},
 				terminals = {},
 				buffer_chests = {},
 				signal_dirty = false,
 				next_fill_machine_index = 1,
 				next_extract_machine_index = 1,
 				next_absorber_cable_index = 1,
+				next_fluid_input_index = 1,
+				next_fluid_output_index = 1,
+				next_buffer_chest_index = 1,
+				buffer_chest_process_budget = 0,
+				next_terminal_ref_check_index = 1,
+				next_machine_ref_check_index = 1,
+				next_buffer_chest_ref_check_index = 1,
 				next_insert_terminal_index = 1,
 				next_remove_terminal_index = 1,
 				machines = {},
@@ -422,6 +508,14 @@ local function build_surface_networks(surface)
 			for _, cable_key in ipairs(cable_keys) do
 				if cable_positions[cable_key] and cable_positions[cable_key].is_absorber then
 					network.absorber_cable_keys[#network.absorber_cable_keys + 1] = cable_key
+				end
+
+				if cable_positions[cable_key] and cable_positions[cable_key].is_fluid_input then
+					network.fluid_input_keys[#network.fluid_input_keys + 1] = cable_key
+				end
+
+				if cable_positions[cable_key] and cable_positions[cable_key].is_fluid_output then
+					network.fluid_output_keys[#network.fluid_output_keys + 1] = cable_key
 				end
 
 				position_to_network[cable_key] = network_id
@@ -457,6 +551,16 @@ local function build_surface_networks(surface)
 				end
 			else
 				storage.terminal_data[unit_number] = nil
+			end
+		end
+	end
+
+	for unit_number, fluid_output_data in pairs(storage.fluid_output_data) do
+		if fluid_output_data.surface_index == surface.index then
+			if is_fluid_output_entity(fluid_output_data.entity) then
+				fluid_output_data.network_id = position_to_network[fluid_output_data.position_key]
+			else
+				storage.fluid_output_data[unit_number] = nil
 			end
 		end
 	end
@@ -510,23 +614,78 @@ local function ensure_terminal_behavior(terminal_data)
 	return terminal.get_or_create_control_behavior()
 end
 
-local function ensure_signal_section(behavior)
-	-- Keep one active section only; it acts as the live item-filter list for the terminal.
+local function terminal_has_real_circuit_connections(terminal)
+	if not is_terminal_entity(terminal) then
+		return false
+	end
+
+	local connectors = terminal.get_wire_connectors(false)
+
+	for _, connector in pairs(connectors or {}) do
+		if connector
+			and connector.valid
+			and (connector.wire_type == defines.wire_type.red or connector.wire_type == defines.wire_type.green)
+			and connector.real_connection_count > 0
+		then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function collect_network_signal_terminal_data(network)
+	local signal_terminals = {}
+
+	for _, terminal_ref in ipairs(network.terminals or {}) do
+		local terminal_data = storage.terminal_data[terminal_ref.unit_number]
+
+		if terminal_data and terminal_has_real_circuit_connections(terminal_data.entity) then
+			signal_terminals[#signal_terminals + 1] = terminal_data
+		end
+	end
+
+	return signal_terminals
+end
+
+local function ensure_signal_sections(behavior, required_sections)
+	-- Spread network signals across as many manual sections as the combinator needs.
 	if not (behavior and behavior.valid) then
-		return nil
+		return {}
 	end
 
-	local section = behavior.get_section(1)
+	required_sections = math.max(1, required_sections or 1)
+	local sections = {}
 
-	if not section then
-		section = behavior.add_section()
+	for section_index = 1, required_sections do
+		local section = behavior.get_section(section_index)
+
+		if not section then
+			section = behavior.add_section()
+		end
+
+		if not (section and section.valid) then
+			break
+		end
+
+		sections[#sections + 1] = section
 	end
 
-	while behavior.sections_count > 1 do
+	while behavior.sections_count > #sections do
 		behavior.remove_section(behavior.sections_count)
 	end
 
-	return section and section.valid and section or nil
+	return sections
+	end
+
+local function clear_signal_section(section)
+	if not (section and section.valid) then
+		return
+	end
+
+	for slot_index = section.filters_count, 1, -1 do
+		section.clear_slot(slot_index)
+	end
 end
 
 local function enable_logistic_point(logistic_point)
@@ -721,9 +880,24 @@ local function get_terminal_data(unit_number)
 	return unit_number and storage.terminal_data[unit_number] or nil
 end
 
+local function get_fluid_output_data(unit_number)
+	return unit_number and storage.fluid_output_data[unit_number] or nil
+end
+
 local function ensure_terminal_virtual_storage(terminal_data)
 	terminal_data.virtual_item_map = terminal_data.virtual_item_map or {}
 	terminal_data.virtual_total_items = terminal_data.virtual_total_items or 0
+	terminal_data.virtual_fluid_map = terminal_data.virtual_fluid_map or {}
+	terminal_data.virtual_total_fluids = terminal_data.virtual_total_fluids or 0
+end
+
+local function make_resource_key(resource_type, resource_name, quality)
+	if resource_type == "item" then
+		quality = normalize_quality(quality)
+		return resource_name .. "|" .. (quality or "normal")
+	end
+
+	return "fluid|" .. resource_name
 end
 
 local function build_sorted_item_list(item_map)
@@ -741,9 +915,18 @@ end
 local function collect_terminal_items(terminal_data)
 	-- Snapshot the terminal's virtual inventory for GUI refreshes and circuit output.
 	ensure_terminal_virtual_storage(terminal_data)
+	local item_map = {}
 
-	local items = build_sorted_item_list(terminal_data.virtual_item_map)
-	return items, #items, terminal_data.virtual_total_items
+	for resource_key, item_data in pairs(terminal_data.virtual_item_map) do
+		item_map[resource_key] = item_data
+	end
+
+	for resource_key, fluid_data in pairs(terminal_data.virtual_fluid_map) do
+		item_map[resource_key] = fluid_data
+	end
+
+	local items = build_sorted_item_list(item_map)
+	return items, #items, terminal_data.virtual_total_items + terminal_data.virtual_total_fluids
 end
 
 local function get_terminal_virtual_item_count(terminal_data, item_name, quality)
@@ -755,7 +938,9 @@ end
 
 local function terminal_has_any_items(terminal_data)
 	-- A terminal stays protected while it still represents active storage.
-	local has_virtual_items = terminal_data and (terminal_data.virtual_total_items or 0) > 0 or false
+	local has_virtual_items = terminal_data
+		and (((terminal_data.virtual_total_items or 0) > 0) or ((terminal_data.virtual_total_fluids or 0) > 0))
+		or false
 
 	return has_virtual_items
 end
@@ -770,7 +955,7 @@ local function update_terminal_entity_state(terminal_data)
 
 	local has_items = terminal_has_any_items(terminal_data)
 	local network = get_network_for_terminal_data(terminal_data)
-	local can_remove = not has_items or (network and #network.terminals > 1)
+	local can_remove = (not has_items) or (network ~= nil and #network.terminals > 1)
 
 	terminal.minable_flag = can_remove
 	terminal.destructible = can_remove
@@ -795,6 +980,7 @@ local function add_to_terminal_virtual_storage(terminal_data, item_name, count, 
 		existing.count = existing.count + count
 	else
 		terminal_data.virtual_item_map[item_key] = {
+			type = "item",
 			name = item_name,
 			quality = quality,
 			count = count,
@@ -805,6 +991,37 @@ local function add_to_terminal_virtual_storage(terminal_data, item_name, count, 
 	update_terminal_entity_state(terminal_data)
 
 	return count
+end
+
+local function add_to_terminal_virtual_fluid_storage(terminal_data, fluid_name, amount)
+	if not (terminal_data and amount and amount > 0) then
+		return 0
+	end
+
+	ensure_terminal_virtual_storage(terminal_data)
+	amount = math.max(0, math.floor(amount))
+
+	if amount <= 0 then
+		return 0
+	end
+
+	local fluid_key = make_resource_key("fluid", fluid_name)
+	local existing = terminal_data.virtual_fluid_map[fluid_key]
+
+	if existing then
+		existing.count = existing.count + amount
+	else
+		terminal_data.virtual_fluid_map[fluid_key] = {
+			type = "fluid",
+			name = fluid_name,
+			count = amount,
+		}
+	end
+
+	terminal_data.virtual_total_fluids = terminal_data.virtual_total_fluids + amount
+	update_terminal_entity_state(terminal_data)
+
+	return amount
 end
 
 local function remove_from_terminal_virtual_storage(terminal_data, item_name, requested_count, quality)
@@ -827,6 +1044,45 @@ local function remove_from_terminal_virtual_storage(terminal_data, item_name, re
 
 	if existing.count <= 0 then
 		terminal_data.virtual_item_map[item_key] = nil
+	end
+
+	update_terminal_entity_state(terminal_data)
+
+	return removed
+end
+
+local function get_terminal_virtual_fluid_count(terminal_data, fluid_name)
+	ensure_terminal_virtual_storage(terminal_data)
+
+	local fluid_data = terminal_data.virtual_fluid_map[make_resource_key("fluid", fluid_name)]
+	return fluid_data and fluid_data.count or 0
+end
+
+local function remove_from_terminal_virtual_fluid_storage(terminal_data, fluid_name, requested_amount)
+	if not (terminal_data and requested_amount and requested_amount > 0) then
+		return 0
+	end
+
+	ensure_terminal_virtual_storage(terminal_data)
+	requested_amount = math.max(0, math.floor(requested_amount))
+
+	if requested_amount <= 0 then
+		return 0
+	end
+
+	local fluid_key = make_resource_key("fluid", fluid_name)
+	local existing = terminal_data.virtual_fluid_map[fluid_key]
+
+	if not existing then
+		return 0
+	end
+
+	local removed = math.min(existing.count, requested_amount)
+	existing.count = existing.count - removed
+	terminal_data.virtual_total_fluids = math.max(0, terminal_data.virtual_total_fluids - removed)
+
+	if existing.count <= 0 then
+		terminal_data.virtual_fluid_map[fluid_key] = nil
 	end
 
 	update_terminal_entity_state(terminal_data)
@@ -910,6 +1166,7 @@ local function rebuild_network_item_cache(network)
 					existing.count = existing.count + item_stack.count
 				else
 					item_map[item_key] = {
+						type = "item",
 						name = item_stack.name,
 						quality = item_stack.quality,
 						count = item_stack.count,
@@ -918,6 +1175,24 @@ local function rebuild_network_item_cache(network)
 				end
 
 				total_items = total_items + item_stack.count
+			end
+
+			for _, fluid_stack in pairs(terminal_data.virtual_fluid_map or {}) do
+				local fluid_key = make_resource_key("fluid", fluid_stack.name)
+				local existing = item_map[fluid_key]
+
+				if existing then
+					existing.count = existing.count + fluid_stack.count
+				else
+					item_map[fluid_key] = {
+						type = "fluid",
+						name = fluid_stack.name,
+						count = fluid_stack.count,
+					}
+					item_types = item_types + 1
+				end
+
+				total_items = total_items + fluid_stack.count
 			end
 		end
 	end
@@ -937,12 +1212,38 @@ local function ensure_network_item_cache(network)
 	rebuild_network_item_cache(network)
 end
 
-update_network_item_cache = function(network, item_name, quality, count_delta)
+local function mark_network_signal_dirty(network)
+	if not network then
+		return
+	end
+
+	network.signal_dirty = true
+
+	local surface_updates = storage.pending_signal_updates[network.surface_index]
+
+	if not surface_updates then
+		surface_updates = {
+			order = {},
+			queued_ids = {},
+			next_index = 1,
+		}
+		storage.pending_signal_updates[network.surface_index] = surface_updates
+	end
+
+	if surface_updates.queued_ids[network.id] then
+		return
+	end
+
+	surface_updates.queued_ids[network.id] = true
+	surface_updates.order[#surface_updates.order + 1] = network.id
+end
+
+local function update_network_resource_cache(network, resource_type, resource_name, quality, count_delta)
 	if not (network.item_cache_tick == game.tick and network.item_cache_map) then
 		return
 	end
 
-	local item_key = make_item_key(item_name, quality)
+	local item_key = make_resource_key(resource_type, resource_name, quality)
 	local existing = network.item_cache_map[item_key]
 
 	if existing then
@@ -954,8 +1255,9 @@ update_network_item_cache = function(network, item_name, quality, count_delta)
 		end
 	elseif count_delta > 0 then
 		network.item_cache_map[item_key] = {
-			name = item_name,
-			quality = quality,
+			type = resource_type,
+			name = resource_name,
+			quality = resource_type == "item" and quality or nil,
 			count = count_delta,
 		}
 		network.item_cache_item_types = network.item_cache_item_types + 1
@@ -965,7 +1267,15 @@ update_network_item_cache = function(network, item_name, quality, count_delta)
 
 	network.item_cache_total_items = math.max(0, network.item_cache_total_items + count_delta)
 	network.item_cache_items = nil
-	network.signal_dirty = true
+	mark_network_signal_dirty(network)
+end
+
+update_network_item_cache = function(network, item_name, quality, count_delta)
+	update_network_resource_cache(network, "item", item_name, quality, count_delta)
+end
+
+local function update_network_fluid_cache(network, fluid_name, count_delta)
+	update_network_resource_cache(network, "fluid", fluid_name, nil, count_delta)
 end
 
 local function get_network_item_snapshot(network)
@@ -1026,6 +1336,10 @@ local function find_best_network_fuel(network, burner)
 	ensure_network_item_cache(network)
 
 	for _, item_stack in pairs(network.item_cache_map) do
+		if item_stack.type ~= "item" then
+			goto continue
+		end
+
 		if burner_accepts_item(burner, item_stack.name) and item_stack.count > 0 then
 			local fuel_value = get_item_fuel_value(item_stack.name)
 
@@ -1037,6 +1351,8 @@ local function find_best_network_fuel(network, burner)
 				}
 			end
 		end
+
+		::continue::
 	end
 
 	return best_fuel
@@ -1047,6 +1363,13 @@ local function get_network_item_count(network, item_name, quality)
 
 	local item_data = network.item_cache_map[make_item_key(item_name, quality)]
 	return item_data and item_data.count or 0
+end
+
+local function get_network_fluid_count(network, fluid_name)
+	ensure_network_item_cache(network)
+
+	local fluid_data = network.item_cache_map[make_resource_key("fluid", fluid_name)]
+	return fluid_data and fluid_data.count or 0
 end
 
 local function item_quality_matches(actual_quality, requested_quality, comparator)
@@ -1092,8 +1415,12 @@ local function collect_matching_network_item_stacks(network, item_name, quality,
 	local stacks = {}
 
 	for _, item_stack in pairs(network.item_cache_map or {}) do
-		if item_stack.name == item_name and item_stack.count > 0 and item_quality_matches(item_stack.quality, quality, comparator) then
+		if  item_stack.name == item_name
+			and item_stack.count > 0
+			and item_quality_matches(item_stack.quality, quality, comparator)
+		then
 			stacks[#stacks + 1] = {
+				type = "item",
 				name = item_stack.name,
 				quality = item_stack.quality,
 				count = item_stack.count,
@@ -1149,6 +1476,16 @@ local function remove_matching_items_from_network(network, item_name, requested_
 	end
 
 	return removed_stacks, requested_count - remaining
+end
+
+local function get_matching_network_item_count(network, item_name, quality, comparator)
+	local total = 0
+
+	for _, item_stack in ipairs(collect_matching_network_item_stacks(network, item_name, quality, comparator)) do
+		total = total + item_stack.count
+	end
+
+	return total
 end
 
 local function get_network_insertable_count(network, item_name, quality)
@@ -1249,6 +1586,88 @@ local function insert_into_network(network, item_name, requested_count, quality,
 	return 0
 end
 
+local function insert_fluid_into_network(network, fluid_name, requested_amount, preferred_unit_number)
+	local terminals_count = #network.terminals
+
+	if terminals_count <= 0 or requested_amount <= 0 then
+		return 0
+	end
+
+	local terminal_data = get_preferred_network_terminal_data(network, preferred_unit_number)
+
+	if terminal_data then
+		add_to_terminal_virtual_fluid_storage(terminal_data, fluid_name, requested_amount)
+		update_network_fluid_cache(network, fluid_name, requested_amount)
+		network.next_insert_terminal_index = normalize_terminal_index(terminals_count, network.next_insert_terminal_index + 1)
+		return requested_amount
+	end
+
+	local start_index = normalize_terminal_index(terminals_count, network.next_insert_terminal_index)
+	local last_index = start_index
+
+	for offset = 0, terminals_count - 1 do
+		local terminal_index = ((start_index + offset - 1) % terminals_count) + 1
+		local terminal_ref = network.terminals[terminal_index]
+		last_index = terminal_index
+
+		if terminal_ref then
+			terminal_data = get_terminal_data(terminal_ref.unit_number)
+
+			if terminal_data then
+				add_to_terminal_virtual_fluid_storage(terminal_data, fluid_name, requested_amount)
+				update_network_fluid_cache(network, fluid_name, requested_amount)
+				network.next_insert_terminal_index = normalize_terminal_index(terminals_count, terminal_index + 1)
+				return requested_amount
+			end
+		end
+	end
+
+	network.next_insert_terminal_index = normalize_terminal_index(terminals_count, last_index + 1)
+
+	return 0
+end
+
+local function remove_fluid_from_network(network, fluid_name, requested_amount)
+	local removed_total = 0
+	local remaining = math.max(0, math.floor(requested_amount or 0))
+	local terminals_count = #network.terminals
+
+	if terminals_count <= 0 or remaining <= 0 then
+		return 0
+	end
+
+	local start_index = normalize_terminal_index(terminals_count, network.next_remove_terminal_index)
+	local last_index = start_index
+
+	for offset = 0, terminals_count - 1 do
+		if remaining <= 0 then
+			break
+		end
+
+		local terminal_index = ((start_index + offset - 1) % terminals_count) + 1
+		local terminal_ref = network.terminals[terminal_index]
+		last_index = terminal_index
+
+		if terminal_ref then
+			local terminal_data = get_terminal_data(terminal_ref.unit_number)
+
+			if terminal_data then
+				local removed = remove_from_terminal_virtual_fluid_storage(terminal_data, fluid_name, remaining)
+
+				if removed > 0 then
+					removed_total = removed_total + removed
+					remaining = remaining - removed
+					update_network_fluid_cache(network, fluid_name, -removed)
+				end
+			end
+		end
+	end
+
+	network.next_remove_terminal_index = normalize_terminal_index(terminals_count, last_index + 1)
+
+	return removed_total
+end
+
 local function top_up_machine_fuel(network, entity)
 	-- Burner-style machines can draw compatible fuel from network storage before crafting.
 	local burner = entity and entity.burner or nil
@@ -1326,6 +1745,40 @@ local function move_output_into_network(network, output_inventory)
 					output_inventory.insert(make_item_stack(item_name, removed - inserted, item_quality))
 				end
 			end
+		end
+
+		::continue::
+	end
+end
+
+local function move_recipe_fluid_outputs_into_network(network, entity, recipe)
+	if not (entity and entity.valid and recipe and recipe.products) then
+		return
+	end
+
+	local fluid_contents = entity.get_fluid_contents()
+
+	for _, product in ipairs(recipe.products) do
+		if product.type ~= "fluid" then
+			goto continue
+		end
+
+		local available = math.max(0, math.floor(fluid_contents[product.name] or 0))
+
+		if available <= 0 then
+			goto continue
+		end
+
+		local removed = math.max(0, math.floor(entity.remove_fluid({ name = product.name, amount = available }) or 0))
+
+		if removed <= 0 then
+			goto continue
+		end
+
+		local inserted = insert_fluid_into_network(network, product.name, removed)
+
+		if inserted < removed then
+			entity.insert_fluid({ name = product.name, amount = removed - inserted })
 		end
 
 		::continue::
@@ -1449,15 +1902,6 @@ local function process_network_buffer_chest(network, buffer_chest_ref)
 		return
 	end
 
-	enable_entity_logistic_points(buffer_chest)
-
-	local request_offset = tonumber(buffer_chest_ref and buffer_chest_ref.unit_number) or 0
-	local should_process_buffer_chest = ((game.tick + request_offset) % BUFFER_CHEST_REQUEST_INTERVAL_TICKS) == 0
-
-	if not should_process_buffer_chest then
-		return
-	end
-
 	local trash_inventory = get_buffer_chest_trash_inventory(buffer_chest)
 
 	if trash_inventory and trash_inventory.valid and not trash_inventory.is_empty() then
@@ -1465,6 +1909,35 @@ local function process_network_buffer_chest(network, buffer_chest_ref)
 	end
 
 	request_items_into_buffer_chest(network, buffer_chest)
+end
+
+local function process_network_buffer_chests(network)
+	local buffer_chests = network.buffer_chests or {}
+	local buffer_chest_count = #buffer_chests
+
+	if buffer_chest_count <= 0 then
+		network.buffer_chest_process_budget = 0
+		return
+	end
+
+	network.buffer_chest_process_budget = (network.buffer_chest_process_budget or 0)
+		+ (buffer_chest_count / BUFFER_CHEST_REQUEST_INTERVAL_TICKS)
+
+	local batch_size = math.min(buffer_chest_count, math.floor(network.buffer_chest_process_budget))
+
+	if batch_size <= 0 then
+		return
+	end
+
+	network.buffer_chest_process_budget = math.max(0, network.buffer_chest_process_budget - batch_size)
+	local buffer_chest_index = normalize_terminal_index(buffer_chest_count, network.next_buffer_chest_index)
+
+	for _ = 1, batch_size do
+		process_network_buffer_chest(network, buffer_chests[buffer_chest_index])
+		buffer_chest_index = normalize_terminal_index(buffer_chest_count, buffer_chest_index + 1)
+	end
+
+	network.next_buffer_chest_index = buffer_chest_index
 end
 
 local function get_absorbable_inventory(entity)
@@ -1564,6 +2037,183 @@ local function absorb_touching_chests(network, max_cables_per_tick)
 	network.next_absorber_cable_index = cable_index
 end
 
+local function absorb_fluid_input(network, fluid_input)
+	if not is_fluid_input_entity(fluid_input) then
+		return
+	end
+
+	for fluid_name, amount in pairs(fluid_input.get_fluid_contents() or {}) do
+		local transferable = math.max(0, math.floor(amount))
+
+		if transferable > 0 then
+			local removed = math.max(0, math.floor(fluid_input.remove_fluid({ name = fluid_name, amount = transferable }) or 0))
+
+			if removed > 0 then
+				insert_fluid_into_network(network, fluid_name, removed)
+			end
+		end
+	end
+end
+
+local function absorb_fluid_inputs(network, max_inputs_per_tick)
+	local fluid_input_keys = network.fluid_input_keys or {}
+	local fluid_input_count = #fluid_input_keys
+
+	if fluid_input_count <= 0 then
+		return
+	end
+
+	local surface = game.surfaces[network.surface_index]
+
+	if not (surface and surface.valid) then
+		return
+	end
+
+	local cable_positions = storage.cable_positions[network.surface_index] or {}
+	local inputs_to_process = math.min(fluid_input_count, math.max(1, max_inputs_per_tick))
+	local input_index = normalize_terminal_index(fluid_input_count, network.next_fluid_input_index)
+
+	for _ = 1, inputs_to_process do
+		local cable_key = fluid_input_keys[input_index]
+		local cable_position = cable_key and cable_positions[cable_key] or nil
+
+		if cable_position then
+			local fluid_input = surface.find_entity(FLUID_INPUT_NAME, {
+				x = cable_position.x + 0.5,
+				y = cable_position.y + 0.5,
+			})
+
+			if fluid_input then
+				absorb_fluid_input(network, fluid_input)
+			end
+		end
+
+		input_index = normalize_terminal_index(fluid_input_count, input_index + 1)
+	end
+
+	network.next_fluid_input_index = input_index
+end
+
+local function process_fluid_output(network, fluid_output)
+	if not is_fluid_output_entity(fluid_output) then
+		return
+	end
+
+	local fluid_output_data = get_fluid_output_data(fluid_output.unit_number)
+
+	if not (fluid_output_data and fluid_output_data.selected_fluid_name) then
+		return
+	end
+
+	local selected_fluid_name = fluid_output_data.selected_fluid_name
+	local fluid_contents = fluid_output.get_fluid_contents() or {}
+	local current_amount = 0
+
+	for fluid_name, amount in pairs(fluid_contents) do
+		local normalized_amount = math.max(0, math.floor(amount or 0))
+
+		if normalized_amount > 0 and fluid_name ~= selected_fluid_name then
+			return
+		end
+
+		if fluid_name == selected_fluid_name then
+			current_amount = normalized_amount
+		end
+	end
+
+	local missing_amount = math.max(0, FLUID_PIPE_TRANSFER_AMOUNT - current_amount)
+	local requested_amount = math.min(missing_amount, get_network_fluid_count(network, selected_fluid_name))
+
+	if requested_amount <= 0 then
+		return
+	end
+
+	local removed = remove_fluid_from_network(network, selected_fluid_name, requested_amount)
+
+	if removed <= 0 then
+		return
+	end
+
+	local inserted = math.max(0, math.floor(fluid_output.insert_fluid({ name = selected_fluid_name, amount = removed }) or 0))
+
+	if inserted < removed then
+		insert_fluid_into_network(network, selected_fluid_name, removed - inserted)
+	end
+end
+
+local function process_fluid_outputs(network, max_outputs_per_tick)
+	local fluid_output_keys = network.fluid_output_keys or {}
+	local fluid_output_count = #fluid_output_keys
+
+	if fluid_output_count <= 0 then
+		return
+	end
+
+	local surface = game.surfaces[network.surface_index]
+
+	if not (surface and surface.valid) then
+		return
+	end
+
+	local cable_positions = storage.cable_positions[network.surface_index] or {}
+	local outputs_to_process = math.min(fluid_output_count, math.max(1, max_outputs_per_tick))
+	local output_index = normalize_terminal_index(fluid_output_count, network.next_fluid_output_index)
+
+	for _ = 1, outputs_to_process do
+		local cable_key = fluid_output_keys[output_index]
+		local cable_position = cable_key and cable_positions[cable_key] or nil
+
+		if cable_position then
+			local fluid_output = surface.find_entity(FLUID_OUTPUT_NAME, {
+				x = cable_position.x + 0.5,
+				y = cable_position.y + 0.5,
+			})
+
+			if fluid_output then
+				process_fluid_output(network, fluid_output)
+			end
+		end
+
+		output_index = normalize_terminal_index(fluid_output_count, output_index + 1)
+	end
+
+	network.next_fluid_output_index = output_index
+end
+
+local function move_fluid_output_contents_into_network(fluid_output_data)
+	if not fluid_output_data then
+		return
+	end
+
+	local fluid_output = fluid_output_data.entity
+
+	if not is_fluid_output_entity(fluid_output) then
+		return
+	end
+
+	local network = fluid_output_data.network_id and get_network_by_id(fluid_output_data.surface_index, fluid_output_data.network_id) or nil
+
+	if not network then
+		return
+	end
+
+	for fluid_name, amount in pairs(fluid_output.get_fluid_contents() or {}) do
+		local transferable = math.max(0, math.floor(amount or 0))
+
+		if transferable > 0 then
+			local removed = math.max(0, math.floor(fluid_output.remove_fluid({ name = fluid_name, amount = transferable }) or 0))
+
+			if removed > 0 then
+				local inserted = insert_fluid_into_network(network, fluid_name, removed)
+
+				if inserted < removed then
+					fluid_output.insert_fluid({ name = fluid_name, amount = removed - inserted })
+				end
+			end
+		end
+	end
+end
+
 local function collect_network_items(network)
 	return get_network_item_snapshot(network)
 end
@@ -1574,32 +2224,49 @@ local function build_signal_filters(items)
 	local filters = {}
 
 	for index, item_data in ipairs(items) do
+		local resource_type = item_data.type or "item"
 		local value = {
-			type = "item",
 			name = item_data.name,
+			quality = "normal",
+			comparator = "=",
 		}
 
-		if item_data.quality then
-			value.quality = item_data.quality
-			value.comparator = "="
+		if resource_type == "fluid" then
+			value.type = "fluid"
+		else
+			value.quality = normalize_quality(item_data.quality) or "normal"
 		end
 
 		filters[index] = {
 			value = value,
-			min = item_data.count,
+			min = math.max(0, math.floor(item_data.count or 0)),
 		}
 	end
 
 	return filters
 end
 
-local function apply_signal_filters(section, filters)
-	for slot_index = section.filters_count, 1, -1 do
-		section.clear_slot(slot_index)
-	end
 
-	for slot_index, filter in ipairs(filters) do
-		section.set_slot(slot_index, filter)
+local function apply_signal_filters(sections, filters)
+	local next_filter_index = 1
+
+	for _, section in ipairs(sections) do
+		clear_signal_section(section)
+		local section_has_filters = false
+
+		for slot_index = 1, TERMINAL_SIGNAL_SECTION_CAPACITY do
+			local filter = filters[next_filter_index]
+
+			if not filter then
+				break
+			end
+
+			section.set_slot(slot_index, filter)
+			section_has_filters = true
+			next_filter_index = next_filter_index + 1
+		end
+
+		section.active = section_has_filters
 	end
 end
 
@@ -1609,20 +2276,48 @@ local function update_terminal_signal_output(terminal_data, filters)
 	if not behavior then
 		return
 	end
-	
-	local section = ensure_signal_section(behavior)
 
-	if not section then
+	local required_sections = math.max(1, math.ceil(#filters / TERMINAL_SIGNAL_SECTION_CAPACITY))
+	local sections = ensure_signal_sections(behavior, required_sections)
+
+	if #sections <= 0 then
 		return
 	end
 
-	apply_signal_filters(section, filters)
-	section.active = #filters > 0
+	apply_signal_filters(sections, filters)
+
 	behavior.enabled = #filters > 0
+	terminal_data.signal_output_active = #filters > 0
 end
 
 local function clear_terminal_signal_output(terminal_data)
-	update_terminal_signal_output(terminal_data, {})
+	local terminal = terminal_data and terminal_data.entity
+
+	if not is_terminal_entity(terminal) then
+		return
+	end
+
+	local behavior = terminal.get_control_behavior()
+	terminal_data.signal_output_active = false
+
+	if not (behavior and behavior.valid) then
+		return
+	end
+
+	for section_index = 1, behavior.sections_count do
+		local section = behavior.get_section(section_index)
+
+		if section and section.valid then
+			clear_signal_section(section)
+			section.active = false
+		end
+	end
+
+	while behavior.sections_count > 1 do
+		behavior.remove_section(behavior.sections_count)
+	end
+
+	behavior.enabled = false
 end
 
 update_surface_network_signals = function(surface_index, networks)
@@ -1630,23 +2325,82 @@ update_surface_network_signals = function(surface_index, networks)
 
 	for _, network in pairs(networks or {}) do
 		if #network.terminals > 0 then
-			local items = collect_network_items(network)
-			local filters = build_signal_filters(items)
+			local signal_terminals = collect_network_signal_terminal_data(network)
 
-			for _, terminal_ref in ipairs(network.terminals or {}) do
-				local terminal_data = storage.terminal_data[terminal_ref.unit_number]
+			if #signal_terminals > 0 then
+				local items = collect_network_items(network)
+				local filters = build_signal_filters(items)
 
-				if terminal_data then
+				for _, terminal_data in ipairs(signal_terminals) do
 					pcall(update_terminal_signal_output, terminal_data, filters)
-					updated[terminal_ref.unit_number] = true
+					updated[terminal_data.unit_number] = true
 				end
 			end
 		end
+
+		network.signal_dirty = false
 	end
 
 	for unit_number, terminal_data in pairs(storage.terminal_data) do
-		if terminal_data.surface_index == surface_index and not updated[unit_number] then
+		if terminal_data.surface_index == surface_index and terminal_data.signal_output_active and not updated[unit_number] then
 			pcall(clear_terminal_signal_output, terminal_data)
+		end
+	end
+end
+
+local function update_network_signal_outputs(network)
+	if not network then
+		return
+	end
+
+	if #network.terminals <= 0 then
+		network.signal_dirty = false
+		return
+	end
+
+	local signal_terminals = collect_network_signal_terminal_data(network)
+
+	if #signal_terminals <= 0 then
+		network.signal_dirty = false
+		return
+	end
+
+	local items = collect_network_items(network)
+	local filters = build_signal_filters(items)
+
+	for _, terminal_data in ipairs(signal_terminals) do
+		pcall(update_terminal_signal_output, terminal_data, filters)
+	end
+
+	network.signal_dirty = false
+end
+
+local function flush_pending_network_signal_updates(max_networks_per_surface)
+	if max_networks_per_surface <= 0 then
+		return
+	end
+
+	for surface_index, surface_updates in pairs(storage.pending_signal_updates or {}) do
+		local networks = storage.networks_by_surface[surface_index] or {}
+		local processed = 0
+
+		while processed < max_networks_per_surface do
+			local next_index = surface_updates.next_index or 1
+			local network_id = surface_updates.order[next_index]
+
+			if not network_id then
+				break
+			end
+
+			surface_updates.next_index = next_index + 1
+			surface_updates.queued_ids[network_id] = nil
+			processed = processed + 1
+
+			update_network_signal_outputs(networks[network_id])
+		end
+
+		if (surface_updates.next_index or 1) > #surface_updates.order then
+			storage.pending_signal_updates[surface_index] = nil
 		end
 	end
 end
@@ -1682,14 +2436,19 @@ local function get_machine_target_craft_buffer(machine_ref, entity, recipe, refi
 end
 
 local function top_up_recipe_inputs(network, machine_ref, entity, input_inventory, recipe, recipe_quality, refill_interval_ticks)
-	if not (machine_ref and entity and entity.valid and input_inventory and recipe) then
+	if not (machine_ref and entity and entity.valid and recipe) then
 		return
 	end
 
 	local target_craft_buffer = get_machine_target_craft_buffer(machine_ref, entity, recipe, refill_interval_ticks)
+	local fluid_contents = entity.get_fluid_contents()
 
 	for _, ingredient in ipairs(recipe.ingredients) do
 		if ingredient.type == "item" then
+			if not input_inventory then
+				goto continue
+			end
+
 			local ingredient_quality = normalize_quality(ingredient.quality or recipe_quality)
 			local item_id = make_item_id(ingredient.name, ingredient_quality)
 			local ingredient_amount = math.max(1, math.ceil(ingredient.amount or 1))
@@ -1711,7 +2470,32 @@ local function top_up_recipe_inputs(network, machine_ref, entity, input_inventor
 					end
 				end
 			end
+		elseif ingredient.type == "fluid" then
+			local ingredient_amount = math.max(1, math.ceil(ingredient.amount or 1))
+			local target_buffer_amount = ingredient_amount * target_craft_buffer
+			local current_amount = fluid_contents[ingredient.name] or 0
+			local missing_amount = math.max(0, math.ceil(target_buffer_amount - current_amount))
+			local removable = get_network_fluid_count(network, ingredient.name)
+			local requested = math.min(missing_amount, removable)
+
+			if requested > 0 then
+				local removed = remove_fluid_from_network(network, ingredient.name, requested)
+
+				if removed > 0 then
+					local inserted = math.max(0, math.floor(entity.insert_fluid({ name = ingredient.name, amount = removed }) or 0))
+
+					if inserted < removed then
+						insert_fluid_into_network(network, ingredient.name, removed - inserted)
+					end
+
+					if inserted > 0 then
+						fluid_contents[ingredient.name] = current_amount + inserted
+					end
+				end
+			end
 		end
+
+		::continue::
 	end
 end
 
@@ -1729,6 +2513,7 @@ local function process_assembler(network, machine_ref, do_fill_inputs, do_extrac
 
 	if do_extract_outputs then
 		move_output_into_network(network, output_inventory)
+		move_recipe_fluid_outputs_into_network(network, entity, recipe)
 	end
 end
 
@@ -1746,6 +2531,7 @@ local function process_furnace(network, machine_ref, do_fill_inputs, do_extract_
 
 	if do_extract_outputs then
 		move_output_into_network(network, result_inventory)
+		move_recipe_fluid_outputs_into_network(network, entity, recipe)
 	end
 end
 
@@ -1754,6 +2540,141 @@ local function process_mining_drill(network, entity, do_extract_outputs)
 		top_up_machine_fuel(network, entity)
 		local output_inventory = entity.get_output_inventory()
 		move_output_into_network(network, output_inventory)
+	end
+end
+
+local function process_lab(network, machine_ref, do_fill_inputs, do_extract_outputs)
+	local entity = machine_ref.entity
+
+	if not (entity and entity.valid) then
+		return
+	end
+
+	local input_inventory = entity.get_inventory(defines.inventory.lab_input)
+
+	if not (input_inventory and input_inventory.valid) then
+		return
+	end
+
+	if not do_fill_inputs then
+		return
+	end
+
+	local lab_inputs = entity.prototype.lab_inputs or {}
+
+	if #lab_inputs <= 0 then
+		return
+	end
+
+	local supported_science_packs = {}
+	local current_counts = {}
+	local network_stacks_by_name = {}
+	local target_buffer_count = 2
+
+	for _, science_pack_name in ipairs(lab_inputs) do
+		if science_pack_name then
+			supported_science_packs[science_pack_name] = true
+		end
+	end
+
+	for slot_index = 1, #input_inventory do
+		local item_stack = input_inventory[slot_index]
+
+		if item_stack and item_stack.valid_for_read and supported_science_packs[item_stack.name] then
+			current_counts[item_stack.name] = (current_counts[item_stack.name] or 0) + item_stack.count
+		end
+	end
+
+	ensure_network_item_cache(network)
+
+	for _, item_stack in pairs(network.item_cache_map or {}) do
+		if (item_stack.type == nil or item_stack.type == "item")
+			and item_stack.count > 0
+			and supported_science_packs[item_stack.name]
+		then
+			local stacks = network_stacks_by_name[item_stack.name]
+
+			if not stacks then
+				stacks = {}
+				network_stacks_by_name[item_stack.name] = stacks
+			end
+
+			stacks[#stacks + 1] = {
+				name = item_stack.name,
+				quality = item_stack.quality,
+				count = item_stack.count,
+			}
+		end
+	end
+
+	for _, stacks in pairs(network_stacks_by_name) do
+		table.sort(stacks, function(left, right)
+			local left_quality = left.quality or "normal"
+			local right_quality = right.quality or "normal"
+
+			if left_quality == right_quality then
+				if left.count == right.count then
+					return left.name < right.name
+				end
+
+				return left.count > right.count
+			end
+
+			if left_quality == "normal" then
+				return true
+			end
+
+			if right_quality == "normal" then
+				return false
+			end
+
+			return left_quality < right_quality
+		end)
+	end
+
+	for _, science_pack_name in ipairs(lab_inputs) do
+		if not science_pack_name then
+			goto continue_fill
+		end
+
+		local current_count = current_counts[science_pack_name] or 0
+		local missing_count = math.max(0, target_buffer_count - current_count)
+		local requested = missing_count
+
+		if requested > 0 then
+			for _, network_stack in ipairs(network_stacks_by_name[science_pack_name] or {}) do
+				if requested <= 0 then
+					break
+				end
+
+				local removed = remove_from_network(network, science_pack_name, requested, network_stack.quality)
+
+				if removed <= 0 then
+					goto continue_removed_stack
+				end
+
+				local removed_stack = make_item_stack(science_pack_name, removed, network_stack.quality)
+				local inserted = entity.insert(removed_stack)
+
+				if inserted <= 0 then
+					inserted = input_inventory.insert(removed_stack)
+				end
+
+				if inserted > 0 then
+					current_counts[science_pack_name] = current_count + inserted
+					current_count = current_counts[science_pack_name]
+					requested = math.max(0, target_buffer_count - current_count)
+				end
+
+				if inserted < removed_stack.count then
+					insert_into_network(network, removed_stack.name, removed_stack.count - inserted, removed_stack.quality)
+				end
+
+				::continue_removed_stack::
+			end
+		end
+
+		::continue_fill::
 	end
 end
 
@@ -1769,29 +2690,49 @@ local function process_network_machine(machine_ref, network, do_fill_inputs, do_
 		process_assembler(network, machine_ref, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
 	elseif machine_ref.type == "furnace" then
 		process_furnace(network, machine_ref, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
+	elseif machine_ref.type == "lab" then
+		process_lab(network, machine_ref, do_fill_inputs, do_extract_outputs)
 	elseif machine_ref.type == "mining-drill" then
 		process_mining_drill(network, entity, do_extract_outputs)
 	end
 end
 
 local function network_has_invalid_refs(network)
-	-- Any missing cached entity means the surface should be rebuilt from live world state.
-	for _, terminal_ref in ipairs(network.terminals) do
-		if not is_terminal_entity(terminal_ref.entity) then
-			return true
+	local function audit_refs(refs, index_field, validator)
+		local refs_count = #refs
+
+		if refs_count <= 0 then
+			network[index_field] = 1
+			return false
 		end
+
+		local ref_index = normalize_terminal_index(refs_count, network[index_field])
+		local refs_to_check = math.min(refs_count, NETWORK_REF_AUDIT_BATCH_SIZE)
+
+		for _ = 1, refs_to_check do
+			local ref = refs[ref_index]
+
+			if not validator(ref and ref.entity) then
+				return true
+			end
+
+			ref_index = normalize_terminal_index(refs_count, ref_index + 1)
+		end
+
+		network[index_field] = ref_index
+		return false
 	end
 
-	for _, machine_ref in ipairs(network.machines) do
-		if not (machine_ref.entity and machine_ref.entity.valid) then
-			return true
-		end
+	if audit_refs(network.terminals, "next_terminal_ref_check_index", is_terminal_entity) then
+		return true
 	end
 
-	for _, buffer_chest_ref in ipairs(network.buffer_chests or {}) do
-		if not is_buffer_chest_entity(buffer_chest_ref.entity) then
-			return true
-		end
+	if audit_refs(network.machines, "next_machine_ref_check_index", is_supported_machine) then
+		return true
+	end
+
+	if audit_refs(network.buffer_chests or {}, "next_buffer_chest_ref_check_index", is_buffer_chest_entity) then
+		return true
 	end
 
 	return false
@@ -1803,6 +2744,10 @@ end
 
 function network_logic.is_terminal(entity)
 	return is_terminal_entity(entity)
+end
+
+function network_logic.is_fluid_output(entity)
+	return is_fluid_output_entity(entity)
 end
 
 function network_logic.is_topology_entity(entity)
@@ -1824,6 +2769,7 @@ function network_logic.rebuild_surface(surface)
 	build_surface_networks(surface)
 	sync_surface_terminal_buffers(surface.index)
 	storage.pending_surface_visual_refreshes[surface.index] = nil
+	storage.pending_signal_updates[surface.index] = nil
 	draw_surface_connection_lines(surface, storage.networks_by_surface[surface.index])
 	update_surface_network_signals(surface.index, storage.networks_by_surface[surface.index])
 end
@@ -1832,6 +2778,7 @@ local function rebuild_surface_runtime(surface, defer_visual_refresh)
 	rescan_surface_entities(surface)
 	build_surface_networks(surface)
 	sync_surface_terminal_buffers(surface.index)
+	storage.pending_signal_updates[surface.index] = nil
 	update_surface_network_signals(surface.index, storage.networks_by_surface[surface.index])
 
 	if defer_visual_refresh then
@@ -1947,6 +2894,10 @@ function network_logic.on_topology_changed(event)
 		enable_entity_logistic_points(entity)
 	end
 
+	if event.tags then
+		network_logic.apply_fluid_output_blueprint_tags(entity, event.tags)
+	end
+
 	if DEFERRED_TOPOLOGY_EVENT_SET[event.name] then
 		storage.pending_surface_rebuilds[entity.surface.index] = true
 		return false
@@ -1977,11 +2928,12 @@ function network_logic.process_networks()
 			if #network.terminals > 0 then
 				if do_periodic_network_update then
 					absorb_touching_chests(network, absorb_batch_size)
+					absorb_fluid_inputs(network, absorb_batch_size)
 				end
 
-				for _, buffer_chest_ref in ipairs(network.buffer_chests or {}) do
-					process_network_buffer_chest(network, buffer_chest_ref)
-				end
+				process_fluid_outputs(network, math.max(1, extract_machines_per_tick))
+
+				process_network_buffer_chests(network)
 
 				local machines_count = #network.machines
 
@@ -2013,26 +2965,7 @@ function network_logic.process_networks()
 		network_logic.rebuild_surface(game.surfaces[surface_index])
 	end
 
-	if do_periodic_network_update then
-		for surface_index, networks in pairs(storage.networks_by_surface) do
-			local has_dirty_networks = false
-
-			for _, network in pairs(networks) do
-				if network.signal_dirty then
-					has_dirty_networks = true
-					break
-				end
-			end
-
-			if has_dirty_networks then
-				update_surface_network_signals(surface_index, networks)
-
-				for _, network in pairs(networks) do
-					network.signal_dirty = false
-				end
-			end
-		end
-	end
+	flush_pending_network_signal_updates(math.max(1, extract_machines_per_tick))
 end
 
 function network_logic.get_processing_settings()
@@ -2115,6 +3048,139 @@ function network_logic.get_terminal_snapshot(unit_number)
 	end)
 
 	return snapshot
+end
+
+function network_logic.get_fluid_output_snapshot(unit_number)
+	ensure_storage()
+
+	local fluid_output_data = storage.fluid_output_data[unit_number]
+
+	if not fluid_output_data then
+		return nil
+	end
+
+	local fluid_output = fluid_output_data.entity
+
+	if not is_fluid_output_entity(fluid_output) then
+		storage.fluid_output_data[unit_number] = nil
+		return nil
+	end
+
+	local snapshot = {
+		entity = fluid_output,
+		connected = false,
+		network_id = fluid_output_data.network_id,
+		selected_fluid_name = fluid_output_data.selected_fluid_name,
+		available_amount = 0,
+		current_amount = 0,
+	}
+
+	if fluid_output_data.selected_fluid_name then
+		snapshot.current_amount = math.max(0, math.floor((fluid_output.get_fluid_contents() or {})[fluid_output_data.selected_fluid_name] or 0))
+	end
+
+	if not fluid_output_data.network_id then
+		return snapshot
+	end
+
+	local surface_networks = storage.networks_by_surface[fluid_output.surface.index] or {}
+	local network = surface_networks[fluid_output_data.network_id]
+
+	if not network then
+		snapshot.network_id = nil
+		return snapshot
+	end
+
+	snapshot.connected = true
+
+	if fluid_output_data.selected_fluid_name then
+		snapshot.available_amount = get_network_fluid_count(network, fluid_output_data.selected_fluid_name)
+	end
+
+	return snapshot
+end
+
+function network_logic.set_fluid_output_filter(unit_number, fluid_name)
+	ensure_storage()
+
+	local fluid_output_data = storage.fluid_output_data[unit_number]
+
+	if not fluid_output_data then
+		return false
+	end
+
+	if fluid_name and not prototypes.fluid[fluid_name] then
+		fluid_name = nil
+	end
+
+	if fluid_output_data.selected_fluid_name == fluid_name then
+		return true
+	end
+
+	fluid_output_data.selected_fluid_name = fluid_name
+	move_fluid_output_contents_into_network(fluid_output_data)
+
+	return true
+end
+
+function network_logic.get_fluid_output_blueprint_tags(entity)
+	ensure_storage()
+
+	if not is_fluid_output_entity(entity) then
+		return nil
+	end
+
+	local fluid_output_data = storage.fluid_output_data[entity.unit_number]
+
+	if not (fluid_output_data and fluid_output_data.selected_fluid_name) then
+		return nil
+	end
+
+	return {
+		[FLUID_OUTPUT_BLUEPRINT_TAG] = fluid_output_data.selected_fluid_name,
+	}
+end
+
+function network_logic.apply_fluid_output_blueprint_tags(entity, tags)
+	ensure_storage()
+
+	if not (is_fluid_output_entity(entity) and type(tags) == "table") then
+		return false
+	end
+
+	local fluid_name = tags[FLUID_OUTPUT_BLUEPRINT_TAG]
+
+	if fluid_name ~= nil and not prototypes.fluid[fluid_name] then
+		fluid_name = nil
+	end
+
+	if fluid_name == nil and tags[FLUID_OUTPUT_BLUEPRINT_TAG] == nil then
+		return false
+	end
+
+	local fluid_output_data = ensure_fluid_output_data(entity)
+
+	if not fluid_output_data then
+		return false
+	end
+
+	return network_logic.set_fluid_output_filter(fluid_output_data.unit_number, fluid_name)
+end
+
+function network_logic.copy_fluid_output_settings(source_entity, destination_entity)
+	ensure_storage()
+
+	if not (is_fluid_output_entity(source_entity) and is_fluid_output_entity(destination_entity)) then
+		return false
+	end
+
+	local source_data = storage.fluid_output_data[source_entity.unit_number]
+
+	if not source_data then
+		return false
+	end
+
+	return network_logic.set_fluid_output_filter(destination_entity.unit_number, source_data.selected_fluid_name)
 end
 
 function network_logic.take_terminal_item(unit_number, player, item_name, quality, requested_count)

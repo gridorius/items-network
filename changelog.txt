@@ -1,0 +1,42 @@
+Version: 0.1.0
+Date: 2026-05-11
+  Changes:
+    - Added a dedicated GUI for Network fluid output pipes that opens on click and keeps the selected fluid per pipe.
+    - Added blueprint tag and settings paste support for Network fluid output pipe filters.
+    - Expanded terminal circuit output to span multiple manual sections so large networks can expose more signals.
+    - Improved terminal circuit output generation for mixed item and fluid network contents.
+
+  Bugfixes:
+    - Fixed terminal signal filters so quality-aware item signals are exported correctly.
+    - Fixed terminal signal updates that could fail with a boolean runtime error in entity state handling.
+    - Fixed fluid output configuration persistence when copying entities or creating blueprints.
+
+  Optimizations:
+    - Skipped terminal signal rebuild work for terminals without real circuit wire connections.
+    - Limited signal clearing to terminals that previously had active output sections.
+    - Kept dirty-network signal propagation queued instead of refreshing every terminal on every update.
+
+Version: 0.0.3
+Date: 2026-05-11
+  Major Features:
+    - Added fluid support to the network.
+    - Added the Network fluid intake pipe based on pipe-to-ground.
+    - Added the Network fluid output pipe with per-pipe fluid selection.
+    - Added machine fluid input delivery and fluid result extraction back into the network.
+    - Added laboratory support for automatic science pack delivery.
+
+  Changes:
+    - Expanded terminal snapshots and GUI grouping to display both items and fluids.
+    - Updated item, recipe, technology, icon, color, and locale data for the fluid intake pipe.
+    - Labs now keep up to 2 science packs of each supported type and accept any quality.
+    - Labs no longer extract science packs back into the network.
+
+  Bugfixes:
+    - Fixed lab science pack insertion after the lab refill rewrite.
+    - Fixed network item cache entries so item stacks are tagged correctly after cache rebuilds.
+    - Fixed machine recipe input handling for recipes with fluid ingredients.
+
+  Optimizations:
+    - Spread buffer chest processing over time with round-robin scheduling.
+    - Replaced full per-tick network reference scans with batched audits.
+    - Replaced broad circuit signal refreshes with queued dirty-network updates.

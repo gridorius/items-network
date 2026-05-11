@@ -16,6 +16,8 @@ network_cable_entity.minable = { mining_time = 0.1, result = "network-cable" }
 -- Recolor every sprite layer recursively so the new entity reads as a distinct cable type.
 local cable_tint = { r = 0.2, g = 0.9, b = 1.0, a = 1.0 }
 local absorber_cable_tint = { r = 1.0, g = 0.7, b = 0.2, a = 1.0 }
+local fluid_input_tint = { r = 0.15, g = 0.45, b = 1.0, a = 1.0 }
+local fluid_output_tint = { r = 0.1, g = 0.85, b = 0.45, a = 1.0 }
 
 local function apply_tint_to_sprites(node, tint)
   -- Walk the whole prototype table because sprite definitions can be nested deeply.
@@ -44,6 +46,43 @@ network_absorber_cable_entity.minable = { mining_time = 0.1, result = "network-a
 
 apply_tint_to_sprites(network_absorber_cable_entity, absorber_cable_tint)
 
+local network_fluid_input_entity = table.deepcopy(data.raw["pipe-to-ground"]["pipe-to-ground"])
+local vanilla_pipe_to_ground_item = data.raw["item"]["pipe-to-ground"]
+network_fluid_input_entity.name = "network-fluid-input"
+network_fluid_input_entity.localised_name = {"item-name.network-fluid-input"}
+network_fluid_input_entity.localised_description = {"item-description.network-fluid-input"}
+network_fluid_input_entity.minable = { mining_time = 0.1, result = "network-fluid-input" }
+
+if vanilla_pipe_to_ground_item then
+  network_fluid_input_entity.icons = table.deepcopy(vanilla_pipe_to_ground_item.icons)
+  network_fluid_input_entity.icon = vanilla_pipe_to_ground_item.icon
+  network_fluid_input_entity.icon_size = vanilla_pipe_to_ground_item.icon_size
+end
+
+if network_fluid_input_entity.fluid_box then
+  network_fluid_input_entity.fluid_box.volume = 5000
+end
+
+apply_tint_to_sprites(network_fluid_input_entity, fluid_input_tint)
+
+local network_fluid_output_entity = table.deepcopy(data.raw["pipe-to-ground"]["pipe-to-ground"])
+network_fluid_output_entity.name = "network-fluid-output"
+network_fluid_output_entity.localised_name = {"item-name.network-fluid-output"}
+network_fluid_output_entity.localised_description = {"item-description.network-fluid-output"}
+network_fluid_output_entity.minable = { mining_time = 0.1, result = "network-fluid-output" }
+
+if vanilla_pipe_to_ground_item then
+  network_fluid_output_entity.icons = table.deepcopy(vanilla_pipe_to_ground_item.icons)
+  network_fluid_output_entity.icon = vanilla_pipe_to_ground_item.icon
+  network_fluid_output_entity.icon_size = vanilla_pipe_to_ground_item.icon_size
+end
+
+if network_fluid_output_entity.fluid_box then
+  network_fluid_output_entity.fluid_box.volume = 5000
+end
+
+apply_tint_to_sprites(network_fluid_output_entity, fluid_output_tint)
+
 local network_cable_item_icons = table.deepcopy(network_cable_entity.icons)
 local network_cable_item_icon_size = network_cable_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
@@ -53,6 +92,16 @@ local network_absorber_cable_item_icons = table.deepcopy(network_absorber_cable_
 local network_absorber_cable_item_icon_size = network_absorber_cable_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
 local network_absorber_cable_item_icon_mipmaps = rawget(network_absorber_cable_entity, "icon_mipmaps")
+
+local network_fluid_input_item_icons = table.deepcopy(network_fluid_input_entity.icons)
+local network_fluid_input_item_icon_size = network_fluid_input_entity.icon_size
+---@diagnostic disable-next-line: undefined-field
+local network_fluid_input_item_icon_mipmaps = vanilla_pipe_to_ground_item and rawget(vanilla_pipe_to_ground_item, "icon_mipmaps") or nil
+
+local network_fluid_output_item_icons = table.deepcopy(network_fluid_output_entity.icons)
+local network_fluid_output_item_icon_size = network_fluid_output_entity.icon_size
+---@diagnostic disable-next-line: undefined-field
+local network_fluid_output_item_icon_mipmaps = vanilla_pipe_to_ground_item and rawget(vanilla_pipe_to_ground_item, "icon_mipmaps") or nil
 
 if network_cable_item_icons then
   for _, icon_layer in ipairs(network_cable_item_icons) do
@@ -82,6 +131,34 @@ else
   }
 end
 
+if network_fluid_input_item_icons then
+  for _, icon_layer in ipairs(network_fluid_input_item_icons) do
+    icon_layer.tint = fluid_input_tint
+  end
+else
+  network_fluid_input_item_icons = {
+    {
+      icon = network_fluid_input_entity.icon,
+      icon_size = network_fluid_input_item_icon_size,
+      tint = fluid_input_tint,
+    },
+  }
+end
+
+if network_fluid_output_item_icons then
+  for _, icon_layer in ipairs(network_fluid_output_item_icons) do
+    icon_layer.tint = fluid_output_tint
+  end
+else
+  network_fluid_output_item_icons = {
+    {
+      icon = network_fluid_output_entity.icon,
+      icon_size = network_fluid_output_item_icon_size,
+      tint = fluid_output_tint,
+    },
+  }
+end
+
 -- Clone the constant combinator so the terminal can output network item counts to circuits.
 local network_terminal_entity = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
 local network_buffer_chest_entity = table.deepcopy(data.raw["logistic-container"]["buffer-chest"])
@@ -101,6 +178,8 @@ network_buffer_chest_entity.render_not_in_network_icon = false
 data:extend({
   network_cable_entity,
   network_absorber_cable_entity,
+  network_fluid_input_entity,
+  network_fluid_output_entity,
   network_terminal_entity,
   network_buffer_chest_entity,
 
@@ -151,6 +230,34 @@ data:extend({
     order = "b[network-terminal]",
     place_result = "network-terminal",
     stack_size = 50,
+  },
+
+  {
+    type = "item",
+    name = "network-fluid-input",
+    localised_name = {"item-name.network-fluid-input"},
+    localised_description = {"item-description.network-fluid-input"},
+    icons = network_fluid_input_item_icons,
+    icon_size = network_fluid_input_item_icon_size,
+    icon_mipmaps = network_fluid_input_item_icon_mipmaps,
+    subgroup = "items-network",
+    order = "bb[network-fluid-input]",
+    place_result = "network-fluid-input",
+    stack_size = 100,
+  },
+
+  {
+    type = "item",
+    name = "network-fluid-output",
+    localised_name = {"item-name.network-fluid-output"},
+    localised_description = {"item-description.network-fluid-output"},
+    icons = network_fluid_output_item_icons,
+    icon_size = network_fluid_output_item_icon_size,
+    icon_mipmaps = network_fluid_output_item_icon_mipmaps,
+    subgroup = "items-network",
+    order = "bc[network-fluid-output]",
+    place_result = "network-fluid-output",
+    stack_size = 100,
   },
 
   {
@@ -222,6 +329,44 @@ data:extend({
 
   {
     type = "recipe",
+    name = "network-fluid-input",
+    localised_name = {"recipe-name.network-fluid-input"},
+    subgroup = "items-network",
+    order = "bb[network-fluid-input]",
+    enabled = false,
+    energy_required = 2,
+    ingredients = {
+      { type = "item", name = "pipe-to-ground", amount = 1 },
+      { type = "item", name = "steel-plate", amount = 2 },
+      { type = "item", name = "electronic-circuit", amount = 2 },
+      { type = "item", name = "network-cable", amount = 2 },
+    },
+    results = {
+      { type = "item", name = "network-fluid-input", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-fluid-output",
+    localised_name = {"recipe-name.network-fluid-output"},
+    subgroup = "items-network",
+    order = "bc[network-fluid-output]",
+    enabled = false,
+    energy_required = 2,
+    ingredients = {
+      { type = "item", name = "pipe-to-ground", amount = 1 },
+      { type = "item", name = "steel-plate", amount = 2 },
+      { type = "item", name = "electronic-circuit", amount = 2 },
+      { type = "item", name = "network-cable", amount = 2 },
+    },
+    results = {
+      { type = "item", name = "network-fluid-output", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
     name = "network-buffer-chest",
     localised_name = {"recipe-name.network-buffer-chest"},
     subgroup = "items-network",
@@ -258,6 +403,8 @@ data:extend({
       { type = "unlock-recipe", recipe = "network-cable" },
       { type = "unlock-recipe", recipe = "network-absorber-cable" },
       { type = "unlock-recipe", recipe = "network-terminal" },
+      { type = "unlock-recipe", recipe = "network-fluid-input" },
+      { type = "unlock-recipe", recipe = "network-fluid-output" },
       { type = "unlock-recipe", recipe = "network-buffer-chest" },
     },
     order = "c-z[items-network]",

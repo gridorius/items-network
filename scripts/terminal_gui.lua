@@ -21,6 +21,7 @@ local ITEM_EMPTY_LABEL_NAME = "items_network_terminal_item_grid_empty"
 local ITEM_GRID_COLUMN_COUNT = 8
 local ITEM_GRID_CONTENT_COLUMN_COUNT = 1
 local ITEM_GROUP_TAB_COLUMN_COUNT = 6
+local FLUID_GROUP_NAME = "__fluids__"
 
 local network_logic = nil
 
@@ -109,8 +110,48 @@ local function get_item_caption(item_name)
 	return item_name
 end
 
-local function get_item_group_data(item_name)
-	local prototype = prototypes.item[item_name]
+local function get_fluid_caption(fluid_name)
+	local prototype = prototypes.fluid[fluid_name]
+
+	if prototype then
+		return prototype.localised_name
+	end
+
+	return fluid_name
+end
+
+local function get_resource_caption(resource_type, resource_name)
+	if resource_type == "fluid" then
+		return get_fluid_caption(resource_name)
+	end
+
+	return get_item_caption(resource_name)
+end
+
+local function get_resource_group_data(item)
+	if item.type == "fluid" then
+		local prototype = prototypes.fluid[item.name]
+		local subgroup = prototype and prototype.subgroup or nil
+		local group = subgroup and subgroup.group or nil
+
+		if group then
+			return {
+				name = group.name,
+				caption = group.localised_name,
+				order = group.order or "",
+				sprite = "item-group/" .. group.name,
+			}
+		end
+
+		return {
+			name = FLUID_GROUP_NAME,
+			caption = { "gui.items-network-fluid-group" },
+			order = "zz[fluids]",
+			sprite = "fluid/" .. item.name,
+		}
+	end
+
+	local prototype = prototypes.item[item.name]
 	local group = prototype and prototype.group or nil
 
 	if not group then
@@ -125,8 +166,27 @@ local function get_item_group_data(item_name)
 	}
 end
 
-local function get_item_subgroup_data(item_name)
-	local prototype = prototypes.item[item_name]
+local function get_resource_subgroup_data(item)
+	if item.type == "fluid" then
+		local prototype = prototypes.fluid[item.name]
+		local subgroup = prototype and prototype.subgroup or nil
+
+		if not subgroup then
+			return {
+				name = FLUID_GROUP_NAME,
+				caption = { "gui.items-network-fluid-group" },
+				order = "",
+			}
+		end
+
+		return {
+			name = subgroup.name,
+			caption = subgroup.localised_name,
+			order = subgroup.order or "",
+		}
+	end
+
+	local prototype = prototypes.item[item.name]
 	local subgroup = prototype and prototype.subgroup or nil
 
 	if not subgroup then
@@ -181,11 +241,13 @@ local function get_quality_level(quality_name)
 	return 0, "", normalized_quality
 end
 
-local function build_item_tooltip_from_values(item_name, quality, count)
-	local tooltip = { "", get_item_caption(item_name) }
+local function build_item_tooltip_from_values(resource_type, resource_name, quality, count)
+	local tooltip = { "", get_resource_caption(resource_type, resource_name) }
 
-	tooltip[#tooltip + 1] = "\n"
-	tooltip[#tooltip + 1] = get_display_quality_caption(quality)
+	if resource_type == "item" then
+		tooltip[#tooltip + 1] = "\n"
+		tooltip[#tooltip + 1] = get_display_quality_caption(quality)
+	end
 
 	if count then
 		tooltip[#tooltip + 1] = "\n"
@@ -198,7 +260,7 @@ end
 
 local function build_item_tooltip(item)
 	-- Tooltips show quality and count so each button explains exactly what it returns.
-	return build_item_tooltip_from_values(item.name, item.quality, item.count)
+	return build_item_tooltip_from_values(item.type or "item", item.name, item.quality, item.count)
 end
 
 local function get_click_take_count(item_name, event)
@@ -229,7 +291,7 @@ local function build_item_group_list(items)
 	local groups = {}
 
 	for _, item in ipairs(items or {}) do
-		local group_data = get_item_group_data(item.name)
+		local group_data = get_resource_group_data(item)
 
 		if group_data and not group_map[group_data.name] then
 			group_map[group_data.name] = true
@@ -278,7 +340,7 @@ local function filter_items_by_group_name(group_name, items)
 	local filtered_items = {}
 
 	for _, item in ipairs(items or {}) do
-		local group_data = get_item_group_data(item.name)
+		local group_data = get_resource_group_data(item)
 
 		if group_data and group_data.name == group_name then
 			filtered_items[#filtered_items + 1] = item
@@ -296,10 +358,14 @@ end
 
 local function sort_items_for_recipe_rows(items)
 	table.sort(items, function(left, right)
-		local left_prototype = prototypes.item[left.name]
-		local right_prototype = prototypes.item[right.name]
+		local left_prototype = left.type == "fluid" and prototypes.fluid[left.name] or prototypes.item[left.name]
+		local right_prototype = right.type == "fluid" and prototypes.fluid[right.name] or prototypes.item[right.name]
 		local left_order = left_prototype and left_prototype.order or ""
 		local right_order = right_prototype and right_prototype.order or ""
+
+		if (left.type or "item") ~= (right.type or "item") then
+			return (left.type or "item") < (right.type or "item")
+		end
 
 		if left_order ~= right_order then
 			return left_order < right_order
@@ -329,7 +395,7 @@ local function build_item_recipe_rows(items)
 	local subgroups = {}
 
 	for _, item in ipairs(items or {}) do
-		local subgroup_data = get_item_subgroup_data(item.name) or {
+		local subgroup_data = get_resource_subgroup_data(item) or {
 			name = "__ungrouped__",
 			caption = nil,
 			order = "",
@@ -399,25 +465,28 @@ end
 local function add_item_button(parent, item)
 	local tags = {
 		action = ITEM_BUTTON_ACTION,
+		resource_type = item.type or "item",
 		item_name = item.name,
 	}
 
-	if item.quality then
+	if (item.type or "item") == "item" and item.quality then
 		tags.quality = item.quality
 	end
 
-	local item_button_name = ITEM_BUTTON_NAME_PREFIX .. item.name
+	local item_button_name = ITEM_BUTTON_NAME_PREFIX .. (item.type or "item") .. "_" .. item.name
 
-	if item.quality then
+	if (item.type or "item") == "item" and item.quality then
 		item_button_name = item_button_name .. "_" .. item.quality
 	end
+
+	local sprite = ((item.type or "item") == "fluid") and ("fluid/" .. item.name) or ("item/" .. item.name)
 
 	parent.add({
 		type = "sprite-button",
 		name = item_button_name,
 		style = "slot_button",
-		sprite = "item/" .. item.name,
-		quality = get_quality_id(item.quality),
+		sprite = sprite,
+		quality = ((item.type or "item") == "item") and get_quality_id(item.quality) or nil,
 		number = item.count,
 		show_percent_for_small_numbers = false,
 		tooltip = build_item_tooltip(item),
@@ -960,6 +1029,7 @@ function gui.on_gui_click(event)
 		end
 
 		local tags = element.tags
+		local resource_type = tags.resource_type or "item"
 		local item_name = tags.item_name
 
 		if not item_name then
@@ -967,12 +1037,16 @@ function gui.on_gui_click(event)
 		end
 
 		if event.alt and event.button == defines.mouse_button_type.left then
-			local item_prototype = prototypes.item[item_name]
+			local item_prototype = resource_type == "fluid" and prototypes.fluid[item_name] or prototypes.item[item_name]
 
 			if item_prototype then
 				player.open_factoriopedia_gui(item_prototype)
 			end
 
+			return
+		end
+
+		if resource_type ~= "item" then
 			return
 		end
 

@@ -1,9 +1,10 @@
 {
   "name": "items-network",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "title": "Items Network",
-  "description": "A cable-based item logistics network with terminals, absorber cables, quality-aware storage, and network buffer chests.",
+  "description": "A cable-based item and fluid logistics network with terminals, absorber cables, quality-aware item storage, machine IO, and network buffer chests.",
   "author": "Gridorius",
   "factorio_version": "2.0",
-  "dependencies": ["base", "quality"]
+  "dependencies": ["base", "quality"],
+  "thumbnail": "__items-network__/thumbnail.png"
 }
