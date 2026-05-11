@@ -9,6 +9,7 @@ local BUFFER_CHEST_NAME = "network-buffer-chest"
 local NETWORK_TICK_INTERVAL = 1
 local NETWORK_PERIODIC_UPDATE_INTERVAL_TICKS = 60
 local BUFFER_CHEST_REQUEST_INTERVAL_TICKS = 60
+local MACHINE_INPUT_BUFFER_CACHE_TICKS = 120
 local DEFERRED_REBUILD_INTERVAL_TICKS = 20
 local MAX_SURFACE_REBUILDS_PER_FLUSH = 1
 local VISUAL_REBUILD_DELAY_TICKS = 120
@@ -1650,19 +1651,42 @@ update_surface_network_signals = function(surface_index, networks)
 	end
 end
 
-local function top_up_recipe_inputs(network, machine_ref, entity, input_inventory, recipe, recipe_quality)
+local function get_machine_target_craft_buffer(machine_ref, entity, recipe, refill_interval_ticks)
+	local cache = machine_ref.input_buffer_cache
+	local recipe_energy = math.max(recipe.energy or 0.5, 0.001)
+	local crafting_speed = math.max(0, entity.crafting_speed or 0)
+
+	if cache
+		and cache.recipe_name == recipe.name
+		and cache.recipe_energy == recipe_energy
+		and cache.crafting_speed == crafting_speed
+		and cache.refill_interval_ticks == refill_interval_ticks
+		and (game.tick < cache.next_refresh_tick)
+	then
+		return cache.target_craft_buffer
+	end
+
+	local crafts_per_refill = (crafting_speed * refill_interval_ticks) / (recipe_energy * 60)
+	local target_craft_buffer = math.max(2, math.ceil(crafts_per_refill) + 1)
+
+	machine_ref.input_buffer_cache = {
+		recipe_name = recipe.name,
+		recipe_energy = recipe_energy,
+		crafting_speed = crafting_speed,
+		refill_interval_ticks = refill_interval_ticks,
+		target_craft_buffer = target_craft_buffer,
+		next_refresh_tick = game.tick + MACHINE_INPUT_BUFFER_CACHE_TICKS,
+	}
+
+	return target_craft_buffer
+end
+
+local function top_up_recipe_inputs(network, machine_ref, entity, input_inventory, recipe, recipe_quality, refill_interval_ticks)
 	if not (machine_ref and entity and entity.valid and input_inventory and recipe) then
 		return
 	end
 
-	local processing_settings = ensure_processing_settings()
-	local machines_count = math.max(1, #(network.machines or {}))
-	local fill_batch_size = math.max(1, processing_settings.extract_machines_per_tick)
-	local refill_interval_ticks = math.max(1, math.ceil(machines_count / fill_batch_size))
-	local recipe_energy = math.max(recipe.energy or 0.5, 0.001)
-	local crafting_speed = math.max(0, entity.crafting_speed or 0)
-	local crafts_per_refill = (crafting_speed * refill_interval_ticks) / (recipe_energy * 60)
-	local target_craft_buffer = math.max(2, math.ceil(crafts_per_refill) + 1)
+	local target_craft_buffer = get_machine_target_craft_buffer(machine_ref, entity, recipe, refill_interval_ticks)
 
 	for _, ingredient in ipairs(recipe.ingredients) do
 		if ingredient.type == "item" then
@@ -1692,7 +1716,7 @@ local function top_up_recipe_inputs(network, machine_ref, entity, input_inventor
 end
 
 
-local function process_assembler(network, machine_ref, do_fill_inputs, do_extract_outputs)
+local function process_assembler(network, machine_ref, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
 	local entity = machine_ref.entity
 	local recipe, recipe_quality = entity.get_recipe()
 	local input_inventory = entity.get_inventory(defines.inventory.crafter_input)
@@ -1700,7 +1724,7 @@ local function process_assembler(network, machine_ref, do_fill_inputs, do_extrac
 
 	if do_fill_inputs then
 		top_up_machine_fuel(network, entity)
-		top_up_recipe_inputs(network, machine_ref, entity, input_inventory, recipe, recipe_quality)
+		top_up_recipe_inputs(network, machine_ref, entity, input_inventory, recipe, recipe_quality, refill_interval_ticks)
 	end
 
 	if do_extract_outputs then
@@ -1709,7 +1733,7 @@ local function process_assembler(network, machine_ref, do_fill_inputs, do_extrac
 end
 
 
-local function process_furnace(network, machine_ref, do_fill_inputs, do_extract_outputs)
+local function process_furnace(network, machine_ref, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
 	local entity = machine_ref.entity
 	local recipe, recipe_quality = entity.get_recipe()
 	local source_inventory = entity.get_inventory(defines.inventory.crafter_input)
@@ -1717,7 +1741,7 @@ local function process_furnace(network, machine_ref, do_fill_inputs, do_extract_
 
 	if do_fill_inputs then
 		top_up_machine_fuel(network, entity)
-		top_up_recipe_inputs(network, machine_ref, entity, source_inventory, recipe, recipe_quality)
+		top_up_recipe_inputs(network, machine_ref, entity, source_inventory, recipe, recipe_quality, refill_interval_ticks)
 	end
 
 	if do_extract_outputs then
@@ -1733,7 +1757,7 @@ local function process_mining_drill(network, entity, do_extract_outputs)
 	end
 end
 
-local function process_network_machine(machine_ref, network, do_fill_inputs, do_extract_outputs)
+local function process_network_machine(machine_ref, network, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
 	-- Input refill and output extraction are split so each machine can be throttled independently.
 	local entity = machine_ref and machine_ref.entity
 
@@ -1742,9 +1766,9 @@ local function process_network_machine(machine_ref, network, do_fill_inputs, do_
 	end
 
 	if machine_ref.type == "assembling-machine" then
-		process_assembler(network, machine_ref, do_fill_inputs, do_extract_outputs)
+		process_assembler(network, machine_ref, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
 	elseif machine_ref.type == "furnace" then
-		process_furnace(network, machine_ref, do_fill_inputs, do_extract_outputs)
+		process_furnace(network, machine_ref, do_fill_inputs, do_extract_outputs, refill_interval_ticks)
 	elseif machine_ref.type == "mining-drill" then
 		process_mining_drill(network, entity, do_extract_outputs)
 	end
@@ -1964,16 +1988,17 @@ function network_logic.process_networks()
 				if machines_count > 0 then
 					local fill_index = normalize_terminal_index(machines_count, network.next_fill_machine_index)
 					local fill_batch_size = math.min(machines_count, extract_machines_per_tick)
+					local refill_interval_ticks = math.max(1, math.ceil(machines_count / fill_batch_size))
 					local extract_batch_size = math.min(machines_count, extract_machines_per_tick)
 					local extract_index = normalize_terminal_index(machines_count, network.next_extract_machine_index)
 
 					for _ = 1, fill_batch_size do
-						process_network_machine(network.machines[fill_index], network, true, false)
+						process_network_machine(network.machines[fill_index], network, true, false, refill_interval_ticks)
 						fill_index = normalize_terminal_index(machines_count, fill_index + 1)
 					end
 
 					for _ = 1, extract_batch_size do
-						process_network_machine(network.machines[extract_index], network, false, true)
+						process_network_machine(network.machines[extract_index], network, false, true, refill_interval_ticks)
 						extract_index = normalize_terminal_index(machines_count, extract_index + 1)
 					end
 
@@ -1988,21 +2013,23 @@ function network_logic.process_networks()
 		network_logic.rebuild_surface(game.surfaces[surface_index])
 	end
 
-	for surface_index, networks in pairs(storage.networks_by_surface) do
-		local has_dirty_networks = false
-
-		for _, network in pairs(networks) do
-			if network.signal_dirty then
-				has_dirty_networks = true
-				break
-			end
-		end
-
-		if do_periodic_network_update and has_dirty_networks then
-			update_surface_network_signals(surface_index, networks)
+	if do_periodic_network_update then
+		for surface_index, networks in pairs(storage.networks_by_surface) do
+			local has_dirty_networks = false
 
 			for _, network in pairs(networks) do
-				network.signal_dirty = false
+				if network.signal_dirty then
+					has_dirty_networks = true
+					break
+				end
+			end
+
+			if has_dirty_networks then
+				update_surface_network_signals(surface_index, networks)
+
+				for _, network in pairs(networks) do
+					network.signal_dirty = false
+				end
 			end
 		end
 	end
