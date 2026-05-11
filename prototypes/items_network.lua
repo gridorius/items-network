@@ -1,0 +1,265 @@
+require("circuit-connector-sprites")
+
+---@diagnostic disable-next-line: undefined-global
+local default_circuit_wire_max_distance = default_circuit_wire_max_distance
+---@diagnostic disable-next-line: undefined-global
+local circuit_connector_definitions = circuit_connector_definitions
+
+-- Clone the vanilla heat pipe so the cable keeps pipe-like connectivity and visuals.
+local network_cable_entity = table.deepcopy(data.raw["heat-pipe"]["heat-pipe"])
+network_cable_entity.name = "network-cable"
+network_cable_entity.localised_name = {"item-name.network-cable"}
+network_cable_entity.localised_description = {"item-description.network-cable"}
+network_cable_entity.minable = { mining_time = 0.1, result = "network-cable" }
+
+
+-- Recolor every sprite layer recursively so the new entity reads as a distinct cable type.
+local cable_tint = { r = 0.2, g = 0.9, b = 1.0, a = 1.0 }
+local absorber_cable_tint = { r = 1.0, g = 0.7, b = 0.2, a = 1.0 }
+
+local function apply_tint_to_sprites(node, tint)
+  -- Walk the whole prototype table because sprite definitions can be nested deeply.
+  if type(node) ~= "table" then
+    return
+  end
+
+  if node.filename and not node.draw_as_shadow then
+    node.tint = tint
+  end
+
+  for _, value in pairs(node) do
+    if type(value) == "table" then
+      apply_tint_to_sprites(value, tint)
+    end
+  end
+end
+
+apply_tint_to_sprites(network_cable_entity, cable_tint)
+
+local network_absorber_cable_entity = table.deepcopy(data.raw["heat-pipe"]["heat-pipe"])
+network_absorber_cable_entity.name = "network-absorber-cable"
+network_absorber_cable_entity.localised_name = {"item-name.network-absorber-cable"}
+network_absorber_cable_entity.localised_description = {"item-description.network-absorber-cable"}
+network_absorber_cable_entity.minable = { mining_time = 0.1, result = "network-absorber-cable" }
+
+apply_tint_to_sprites(network_absorber_cable_entity, absorber_cable_tint)
+
+local network_cable_item_icons = table.deepcopy(network_cable_entity.icons)
+local network_cable_item_icon_size = network_cable_entity.icon_size
+---@diagnostic disable-next-line: undefined-field
+local network_cable_item_icon_mipmaps = rawget(network_cable_entity, "icon_mipmaps")
+
+local network_absorber_cable_item_icons = table.deepcopy(network_absorber_cable_entity.icons)
+local network_absorber_cable_item_icon_size = network_absorber_cable_entity.icon_size
+---@diagnostic disable-next-line: undefined-field
+local network_absorber_cable_item_icon_mipmaps = rawget(network_absorber_cable_entity, "icon_mipmaps")
+
+if network_cable_item_icons then
+  for _, icon_layer in ipairs(network_cable_item_icons) do
+    icon_layer.tint = cable_tint
+  end
+else
+  network_cable_item_icons = {
+    {
+      icon = network_cable_entity.icon,
+      icon_size = network_cable_item_icon_size,
+      tint = cable_tint,
+    },
+  }
+end
+
+if network_absorber_cable_item_icons then
+  for _, icon_layer in ipairs(network_absorber_cable_item_icons) do
+    icon_layer.tint = absorber_cable_tint
+  end
+else
+  network_absorber_cable_item_icons = {
+    {
+      icon = network_absorber_cable_entity.icon,
+      icon_size = network_absorber_cable_item_icon_size,
+      tint = absorber_cable_tint,
+    },
+  }
+end
+
+-- Clone the constant combinator so the terminal can output network item counts to circuits.
+local network_terminal_entity = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
+local network_buffer_chest_entity = table.deepcopy(data.raw["logistic-container"]["buffer-chest"])
+
+network_terminal_entity.name = "network-terminal"
+network_terminal_entity.localised_name = {"entity-name.network-terminal"}
+network_terminal_entity.localised_description = {"entity-description.network-terminal"}
+network_terminal_entity.minable = { mining_time = 0.1, result = "network-terminal" }
+
+network_buffer_chest_entity.name = "network-buffer-chest"
+network_buffer_chest_entity.localised_name = {"entity-name.network-buffer-chest"}
+network_buffer_chest_entity.localised_description = {"entity-description.network-buffer-chest"}
+network_buffer_chest_entity.minable = { mining_time = 0.1, result = "network-buffer-chest" }
+network_buffer_chest_entity.render_not_in_network_icon = false
+
+-- Expose the new entities, items, recipes, and technology in one data batch.
+data:extend({
+  network_cable_entity,
+  network_absorber_cable_entity,
+  network_terminal_entity,
+  network_buffer_chest_entity,
+
+  {
+    type = "item-subgroup",
+    name = "items-network",
+    group = "logistics",
+    order = "z[items-network]",
+  },
+
+  -- Item entries let the player place the cable, absorber cable, and terminal.
+  {
+    type = "item",
+    name = "network-cable",
+    localised_name = {"item-name.network-cable"},
+    localised_description = {"item-description.network-cable"},
+    icons = network_cable_item_icons,
+    icon_size = network_cable_item_icon_size,
+    icon_mipmaps = network_cable_item_icon_mipmaps,
+    subgroup = "intermediate-product",
+    order = "z[network-cable]",
+    place_result = "network-cable",
+    stack_size = 200,
+  },
+
+  {
+    type = "item",
+    name = "network-absorber-cable",
+    localised_name = {"item-name.network-absorber-cable"},
+    localised_description = {"item-description.network-absorber-cable"},
+    icons = network_absorber_cable_item_icons,
+    icon_size = network_absorber_cable_item_icon_size,
+    icon_mipmaps = network_absorber_cable_item_icon_mipmaps,
+    subgroup = "intermediate-product",
+    order = "z[network-absorber-cable]",
+    place_result = "network-absorber-cable",
+    stack_size = 200,
+  },
+
+  {
+    type = "item",
+    name = "network-terminal",
+    localised_name = {"item-name.network-terminal"},
+    localised_description = {"item-description.network-terminal"},
+    icon = network_terminal_entity.icon or "__base__/graphics/icons/constant-combinator.png",
+    icon_size = network_terminal_entity.icon_size or 64,
+    subgroup = "items-network",
+    order = "b[network-terminal]",
+    place_result = "network-terminal",
+    stack_size = 50,
+  },
+
+  {
+    type = "item",
+    name = "network-buffer-chest",
+    localised_name = {"item-name.network-buffer-chest"},
+    localised_description = {"item-description.network-buffer-chest"},
+    icon = network_buffer_chest_entity.icon or "__base__/graphics/icons/buffer-chest.png",
+    icon_size = network_buffer_chest_entity.icon_size or 64,
+    subgroup = "items-network",
+    order = "c[network-buffer-chest]",
+    place_result = "network-buffer-chest",
+    stack_size = 50,
+  },
+
+  -- Recipes are grouped under a custom subgroup to keep the crafting menu readable.
+  {
+    type = "recipe",
+    name = "network-cable",
+    localised_name = {"recipe-name.network-cable"},
+    subgroup = "items-network",
+    order = "a[network-cable]",
+    enabled = false,
+    energy_required = 1,
+    ingredients = {
+      { type = "item", name = "steel-plate", amount = 1 },
+      { type = "item", name = "copper-cable",        amount = 20 },
+      { type = "item", name = "electronic-circuit",  amount = 1 },
+    },
+    results = {
+      { type = "item", name = "network-cable", amount = 2 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-absorber-cable",
+    localised_name = {"recipe-name.network-absorber-cable"},
+    subgroup = "items-network",
+    order = "aa[network-absorber-cable]",
+    enabled = false,
+    energy_required = 1,
+    ingredients = {
+      { type = "item", name = "network-cable", amount = 1 },
+      { type = "item", name = "steel-plate", amount = 1 },
+    },
+    results = {
+      { type = "item", name = "network-absorber-cable", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-terminal",
+    localised_name = {"recipe-name.network-terminal"},
+    subgroup = "items-network",
+    order = "b[network-terminal]",
+    enabled = false,
+    energy_required = 2,
+    ingredients = {
+      { type = "item", name = "steel-plate", amount = 8 },
+      { type = "item", name = "electronic-circuit", amount = 5 },
+      { type = "item", name = "network-cable", amount = 6 },
+    },
+    results = {
+      { type = "item", name = "network-terminal", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-buffer-chest",
+    localised_name = {"recipe-name.network-buffer-chest"},
+    subgroup = "items-network",
+    order = "c[network-buffer-chest]",
+    enabled = false,
+    energy_required = 2,
+    ingredients = {
+      { type = "item", name = "buffer-chest", amount = 1 },
+      { type = "item", name = "electronic-circuit", amount = 8 },
+      { type = "item", name = "network-cable", amount = 6 },
+    },
+    results = {
+      { type = "item", name = "network-buffer-chest", amount = 1 },
+    },
+  },
+
+  -- One research unlocks the whole cable network toolset.
+  {
+    type = "technology",
+    name = "items-network",
+    localised_name = {"technology-name.items-network"},
+    localised_description = {"technology-description.items-network"},
+    icon = "__base__/graphics/technology/circuit-network.png",
+    icon_size = 256,
+    prerequisites = {"automation-science-pack", "electronics"},
+    unit = {
+      count = 10,
+      ingredients = {
+        { "automation-science-pack", 1 }
+      },
+      time = 15,
+    },
+    effects = {
+      { type = "unlock-recipe", recipe = "network-cable" },
+      { type = "unlock-recipe", recipe = "network-absorber-cable" },
+      { type = "unlock-recipe", recipe = "network-terminal" },
+      { type = "unlock-recipe", recipe = "network-buffer-chest" },
+    },
+    order = "c-z[items-network]",
+  },
+})

@@ -1,0 +1,9 @@
+{
+  "name": "items-network",
+  "version": "0.0.1",
+  "title": "Items Network",
+  "description": "A cable-based item logistics network with terminals and absorber cables.",
+  "author": "Gridorius",
+  "factorio_version": "2.0",
+  "dependencies": ["base"]
+}
