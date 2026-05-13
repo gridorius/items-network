@@ -5,6 +5,56 @@ local default_circuit_wire_max_distance = default_circuit_wire_max_distance
 ---@diagnostic disable-next-line: undefined-global
 local circuit_connector_definitions = circuit_connector_definitions
 
+data:extend({
+  {
+    type = "collision-layer",
+    name = "network-cable-layer",
+  },
+})
+
+local network_server_entity = {
+    type = "assembling-machine",
+    name = "network-server",
+    localised_name = {"entity-name.network-server"},
+    localised_description = {"entity-description.network-server"},
+    icon = "__items-network__/graphics/icons/server.png",
+    icon_size = 100,
+    flags = {"placeable-neutral", "player-creation"},
+    minable = {
+        mining_time = 10,
+        result = "network-server"
+    },
+    max_health = 30000,
+    tile_width = 2,
+    tile_height = 2,
+    collision_box = {{-1, -1}, {1, 1}},
+    selection_box = {{-1, -1}, {1, 1}},
+    crafting_categories = {"crafting"},
+    crafting_speed = 1,
+    fixed_recipe = "network-server-cycle",
+    show_recipe_icon = false,
+    show_recipe_icon_on_map = false,
+    energy_usage = "20kW",
+    energy_source = {
+        type = "electric",
+        usage_priority = "secondary-input"
+    },
+
+
+    graphics_set = {
+      animation = {
+        filename = "__items-network__/graphics/entity/server/server-sprite.png",
+        width = 150,
+        height = 199,
+        frame_count = 36,
+        animation_speed = 0.5,
+        line_length = 6,
+        scale = 0.45,
+        shift = util.by_pixel(0, -10),
+      }
+    }
+}
+
 -- Clone the vanilla heat pipe so the cable keeps pipe-like connectivity and visuals.
 local network_cable_entity = table.deepcopy(data.raw["heat-pipe"]["heat-pipe"])
 network_cable_entity.name = "network-cable"
@@ -12,6 +62,17 @@ network_cable_entity.localised_name = {"item-name.network-cable"}
 network_cable_entity.localised_description = {"item-description.network-cable"}
 network_cable_entity.minable = { mining_time = 0.1, result = "network-cable" }
 
+local network_connector = table.deepcopy(data.raw["heat-pipe"]["heat-pipe"])
+network_connector.name = "network-connector"
+network_connector.localised_name = {"item-name.network-connector"}
+network_connector.localised_description = {"item-description.network-connector"}
+network_connector.minable = nil
+network_connector.collision_mask = { 
+  layers = {
+    ["network-cable-layer"] = true,
+  }
+}
+network_connector.selection_box = {{0,0}, {0,0}}
 
 -- Recolor every sprite layer recursively so the new entity reads as a distinct cable type.
 local cable_tint = { r = 0.2, g = 0.9, b = 1.0, a = 1.0 }
@@ -37,6 +98,7 @@ local function apply_tint_to_sprites(node, tint)
 end
 
 apply_tint_to_sprites(network_cable_entity, cable_tint)
+apply_tint_to_sprites(network_connector, cable_tint)
 
 local network_absorber_cable_entity = table.deepcopy(data.raw["heat-pipe"]["heat-pipe"])
 network_absorber_cable_entity.name = "network-absorber-cable"
@@ -78,7 +140,7 @@ if vanilla_pipe_to_ground_item then
 end
 
 if network_fluid_output_entity.fluid_box then
-  network_fluid_output_entity.fluid_box.volume = 5000
+  network_fluid_output_entity.fluid_box.volume = 1000
 end
 
 apply_tint_to_sprites(network_fluid_output_entity, fluid_output_tint)
@@ -172,22 +234,47 @@ network_buffer_chest_entity.name = "network-buffer-chest"
 network_buffer_chest_entity.localised_name = {"entity-name.network-buffer-chest"}
 network_buffer_chest_entity.localised_description = {"entity-description.network-buffer-chest"}
 network_buffer_chest_entity.minable = { mining_time = 0.1, result = "network-buffer-chest" }
+network_buffer_chest_entity.inventory_size = 160
 network_buffer_chest_entity.render_not_in_network_icon = false
 
 -- Expose the new entities, items, recipes, and technology in one data batch.
 data:extend({
+  network_server_entity,
   network_cable_entity,
+  network_connector,
   network_absorber_cable_entity,
   network_fluid_input_entity,
   network_fluid_output_entity,
   network_terminal_entity,
   network_buffer_chest_entity,
-
   {
     type = "item-subgroup",
     name = "items-network",
     group = "logistics",
     order = "z[items-network]",
+  },
+
+  {
+    type = "recipe",
+    name = "network-server-cycle",
+    localised_name = {"recipe-name.network-server"},
+    icon = network_server_entity.icon,
+    icon_size = network_server_entity.icon_size,
+    subgroup = "items-network",
+    order = "zz[network-server-cycle]",
+    category = "crafting",
+    enabled = true,
+    hidden = true,
+    hide_from_player_crafting = true,
+    hide_from_stats = true,
+    hide_from_signal_gui = true,
+    allow_decomposition = false,
+    allow_as_intermediate = false,
+    allow_intermediates = false,
+    main_product = "",
+    energy_required = 1,
+    ingredients = {},
+    results = {},
   },
 
   -- Item entries let the player place the cable, absorber cable, and terminal.
@@ -230,6 +317,19 @@ data:extend({
     order = "b[network-terminal]",
     place_result = "network-terminal",
     stack_size = 50,
+  },
+
+  {
+    type = "item",
+    name = "network-server",
+    localised_name = {"item-name.network-server"},
+    localised_description = {"item-description.network-server"},
+    icon = network_server_entity.icon,
+    icon_size = network_server_entity.icon_size,
+    subgroup = "items-network",
+    order = "ba[network-server]",
+    place_result = "network-server",
+    stack_size = 10,
   },
 
   {
@@ -283,7 +383,7 @@ data:extend({
     enabled = false,
     energy_required = 1,
     ingredients = {
-      { type = "item", name = "steel-plate", amount = 1 },
+      { type = "item", name = "iron-plate", amount = 1 },
       { type = "item", name = "copper-cable",        amount = 20 },
       { type = "item", name = "electronic-circuit",  amount = 1 },
     },
@@ -301,8 +401,8 @@ data:extend({
     enabled = false,
     energy_required = 1,
     ingredients = {
-      { type = "item", name = "network-cable", amount = 1 },
-      { type = "item", name = "steel-plate", amount = 1 },
+      { type = "item", name = "network-cable", amount = 3 },
+      { type = "item", name = "iron-plate", amount = 1 },
     },
     results = {
       { type = "item", name = "network-absorber-cable", amount = 1 },
@@ -318,12 +418,30 @@ data:extend({
     enabled = false,
     energy_required = 2,
     ingredients = {
-      { type = "item", name = "steel-plate", amount = 8 },
+      { type = "item", name = "iron-plate", amount = 8 },
       { type = "item", name = "electronic-circuit", amount = 5 },
       { type = "item", name = "network-cable", amount = 6 },
     },
     results = {
       { type = "item", name = "network-terminal", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-server",
+    localised_name = {"recipe-name.network-server"},
+    subgroup = "items-network",
+    order = "ba[network-server]",
+    enabled = false,
+    energy_required = 5,
+    ingredients = {
+      { type = "item", name = "iron-plate", amount = 20 },
+      { type = "item", name = "electronic-circuit", amount = 20 },
+      { type = "item", name = "network-cable", amount = 20 },
+    },
+    results = {
+      { type = "item", name = "network-server", amount = 1 },
     },
   },
 
@@ -337,7 +455,7 @@ data:extend({
     energy_required = 2,
     ingredients = {
       { type = "item", name = "pipe-to-ground", amount = 1 },
-      { type = "item", name = "steel-plate", amount = 2 },
+      { type = "item", name = "iron-plate", amount = 2 },
       { type = "item", name = "electronic-circuit", amount = 2 },
       { type = "item", name = "network-cable", amount = 2 },
     },
@@ -356,7 +474,7 @@ data:extend({
     energy_required = 2,
     ingredients = {
       { type = "item", name = "pipe-to-ground", amount = 1 },
-      { type = "item", name = "steel-plate", amount = 2 },
+      { type = "item", name = "iron-plate", amount = 2 },
       { type = "item", name = "electronic-circuit", amount = 2 },
       { type = "item", name = "network-cable", amount = 2 },
     },
@@ -374,9 +492,9 @@ data:extend({
     enabled = false,
     energy_required = 2,
     ingredients = {
-      { type = "item", name = "buffer-chest", amount = 1 },
-      { type = "item", name = "electronic-circuit", amount = 8 },
-      { type = "item", name = "network-cable", amount = 6 },
+      { type = "item", name = "electronic-circuit", amount = 10 },
+      { type = "item", name = "network-cable", amount = 10 },
+      { type = "item", name = "iron-chest", amount = 1 },
     },
     results = {
       { type = "item", name = "network-buffer-chest", amount = 1 },
@@ -403,6 +521,7 @@ data:extend({
       { type = "unlock-recipe", recipe = "network-cable" },
       { type = "unlock-recipe", recipe = "network-absorber-cable" },
       { type = "unlock-recipe", recipe = "network-terminal" },
+      { type = "unlock-recipe", recipe = "network-server" },
       { type = "unlock-recipe", recipe = "network-fluid-input" },
       { type = "unlock-recipe", recipe = "network-fluid-output" },
       { type = "unlock-recipe", recipe = "network-buffer-chest" },
