@@ -1,7 +1,9 @@
 local new_network_logic = require("scripts.network_runtime")
-local terminal_gui = require("scripts.terminal_gui")
+require("scripts.lib.main")
 
-terminal_gui.bind_network_logic(new_network_logic)
+
+
+-- terminal_gui.bind_network_logic(new_network_logic)
 
 local BUILD_EVENTS = {
 	defines.events.on_built_entity,
@@ -29,26 +31,14 @@ script.on_nth_tick(1, function()
 	new_network_logic.handle_tick()
 end)
 
-script.on_event(defines.events.on_gui_opened, function(event)
-	terminal_gui.on_gui_open(event)
-	-- fluid_output_gui.on_gui_opened(event)
-end)
+local test_interface = Gridorius.Gui:CreateDefaultFrame("test_frame", "Title")
+	:AppendChild(
+		Gridorius.Gui:CreateFlow("test_flow", "vertical")
+		:AppendChild(
+			Gridorius.Gui:CreateButton("test_button", "Click me!")
+		)
+	)
 
-script.on_event(defines.events.on_gui_closed, function(event)
-	terminal_gui.on_gui_closed(event)
-end)
-
-script.on_event(defines.events.on_gui_click, function(event)
-	terminal_gui.on_gui_click(event)
-end)
-
-script.on_event(defines.events.on_gui_elem_changed, function(event)
-	terminal_gui.on_gui_element_changed(event)
-end)
-
--- script.on_event(defines.events.on_gui_elem_changed, function(event)
--- end)
-
--- script.on_event(defines.events.on_gui_selected_tab_changed, function(event)
--- 	gui.on_gui_selected_tab_changed(event)
--- end)
+Gridorius.Gui:BindInterface("network-terminal", test_interface, function(player)
+	return player.gui.screen
+end, true)

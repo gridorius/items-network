@@ -1,3 +1,5 @@
+Gui = require("scripts.gui_lib")
+
 local gui = {
 	current_group = nil,
 	current_pipe = nil

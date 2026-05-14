@@ -3,8 +3,6 @@ local new_network_logic = {
 	initialized = false,
 	distribute_queue = {},
 }
-local network_config = require("scripts.network_config")
-
 local SERVER_NAME = "network-server"
 local CABLE_NAME = "network-cable"
 local CONNECTOR_NAME = "network-connector"
