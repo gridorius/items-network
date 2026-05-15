@@ -1,8 +1,8 @@
 {
   "name": "items-network",
   "version": "0.1.0",
-  "title": "Items Network",
-  "description": "A cable-based item and fluid logistics network with terminals, absorber cables, quality-aware item storage, machine IO, and network buffer chests.",
+  "title": "Items Network [BETA]",
+  "description": "A cable-based item and fluid logistics network with terminals, quality-aware item storage, machine IO, and network buffer chests.",
   "author": "Gridorius",
   "factorio_version": "2.0",
   "dependencies": ["base"],
