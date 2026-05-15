@@ -4,31 +4,37 @@ InterfaceBuilder.__index = InterfaceBuilder
 function InterfaceBuilder:new(gui, name, render_function)
     local self = setmetatable({}, InterfaceBuilder)
     self.gui = gui
-    self.name = name or "root"
+    self.name = name
     self.render_function = render_function or function(parent) return parent end
     self.children = {}
     self.classes = {}
+    self.on_close_handler = nil
     self.after_create_handler = nil
     return self
 end
 
 -- #region Element operations
 
-function InterfaceBuilder:CreateHierarhy(element)
-    return setmetatable({
+function InterfaceBuilder:CreateHierarhy(element, root)
+    local hierarhy = setmetatable({
         element = element,
         children = {},
-        destroy_children = function(self)
-            for _, child in pairs(self.children) do
-                child.element.destroy()
-            end
-            self.children = {}
-        end,
     }, {
         __index = function(self, key)
             return self.children[key]
         end
     })
+    if not root then
+        root = hierarhy
+        hierarhy.on_close_handlers = {}
+    end
+    hierarhy.root = root
+    return hierarhy
+end
+
+function InterfaceBuilder:OnClose(handler)
+    self.on_close_handler = handler
+    return self
 end
 
 function InterfaceBuilder:AfterCreate(handler)
@@ -37,6 +43,7 @@ function InterfaceBuilder:AfterCreate(handler)
 end
 
 function InterfaceBuilder:OnClick(handler)
+    if not self.name then return self end
     self.gui.click_name_handlers[self.name] = function(event)
         local player = game.get_player(event.player_index)
         local target = event.element
@@ -45,12 +52,20 @@ function InterfaceBuilder:OnClick(handler)
     return self
 end
 
-function InterfaceBuilder:RenderRoot(player, parent)
-    local element = self.render_function(parent)
+function InterfaceBuilder:RenderElement(player, parent)
+    local element = self.render_function(parent, player)
     if self.after_create_handler then
-        self.after_create_handler(element)
+        self.after_create_handler(element, player)
     end
+    return element
+end
+
+function InterfaceBuilder:RenderRoot(player, parent)
+    local element = self:RenderElement(player, parent)
     local hierarhy = self:CreateHierarhy(element)
+    if self.on_close_handler then
+        table.insert(hierarhy.root.on_close_handlers, self.on_close_handler)
+    end
     self:RenderElementData(
         element,
         self.classes, player, hierarhy
@@ -59,12 +74,14 @@ function InterfaceBuilder:RenderRoot(player, parent)
 end
 
 function InterfaceBuilder:Render(player, parent, hierarhy)
-    local element = self.render_function(parent)
-    if self.after_create_handler then
-        self.after_create_handler(element)
+    local element = self:RenderElement(player, parent)
+    if self.on_close_handler then
+        table.insert(hierarhy.root.on_close_handlers, self.on_close_handler)
     end
-    local element_hierarhy = self:CreateHierarhy(element)
-    hierarhy.children[self.name] = element_hierarhy
+    local element_hierarhy = self:CreateHierarhy(element, hierarhy)
+    if self.name then
+        hierarhy.children[self.name] = element_hierarhy
+    end
     self:RenderElementData(
         element,
         self.classes, player, element_hierarhy
@@ -84,8 +101,8 @@ function InterfaceBuilder:RenderElementData(element, classes, player, hierarhy)
     return element
 end
 
-function InterfaceBuilder:SetClasses(classes)
-    self.classes = classes
+function InterfaceBuilder:SetClasses(...)
+    self.classes = { ... }
     return self
 end
 
@@ -94,7 +111,7 @@ end
 --#region Element creation
 
 function InterfaceBuilder:AppendChild(builder)
-    self.children[builder.name] = builder
+    table.insert(self.children, builder)
     return self
 end
 

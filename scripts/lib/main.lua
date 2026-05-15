@@ -7,6 +7,11 @@ Gridorius = {
         end
 
         return base
+    end,
+    Dictionary = require("scripts.lib.dictionary"),
+    Inventory = require("scripts.lib.inventory"),
+    nth_tick = function(tick_num)
+        return game.tick % tick_num == 0
     end
 }
 

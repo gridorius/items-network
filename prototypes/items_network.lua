@@ -100,14 +100,6 @@ end
 apply_tint_to_sprites(network_cable_entity, cable_tint)
 apply_tint_to_sprites(network_connector, cable_tint)
 
-local network_absorber_cable_entity = table.deepcopy(data.raw["heat-pipe"]["heat-pipe"])
-network_absorber_cable_entity.name = "network-absorber-cable"
-network_absorber_cable_entity.localised_name = {"item-name.network-absorber-cable"}
-network_absorber_cable_entity.localised_description = {"item-description.network-absorber-cable"}
-network_absorber_cable_entity.minable = { mining_time = 0.1, result = "network-absorber-cable" }
-
-apply_tint_to_sprites(network_absorber_cable_entity, absorber_cable_tint)
-
 local network_fluid_input_entity = table.deepcopy(data.raw["pipe-to-ground"]["pipe-to-ground"])
 local vanilla_pipe_to_ground_item = data.raw["item"]["pipe-to-ground"]
 network_fluid_input_entity.name = "network-fluid-input"
@@ -150,11 +142,6 @@ local network_cable_item_icon_size = network_cable_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
 local network_cable_item_icon_mipmaps = rawget(network_cable_entity, "icon_mipmaps")
 
-local network_absorber_cable_item_icons = table.deepcopy(network_absorber_cable_entity.icons)
-local network_absorber_cable_item_icon_size = network_absorber_cable_entity.icon_size
----@diagnostic disable-next-line: undefined-field
-local network_absorber_cable_item_icon_mipmaps = rawget(network_absorber_cable_entity, "icon_mipmaps")
-
 local network_fluid_input_item_icons = table.deepcopy(network_fluid_input_entity.icons)
 local network_fluid_input_item_icon_size = network_fluid_input_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
@@ -175,20 +162,6 @@ else
       icon = network_cable_entity.icon,
       icon_size = network_cable_item_icon_size,
       tint = cable_tint,
-    },
-  }
-end
-
-if network_absorber_cable_item_icons then
-  for _, icon_layer in ipairs(network_absorber_cable_item_icons) do
-    icon_layer.tint = absorber_cable_tint
-  end
-else
-  network_absorber_cable_item_icons = {
-    {
-      icon = network_absorber_cable_entity.icon,
-      icon_size = network_absorber_cable_item_icon_size,
-      tint = absorber_cable_tint,
     },
   }
 end
@@ -234,7 +207,8 @@ network_buffer_chest_entity.name = "network-buffer-chest"
 network_buffer_chest_entity.localised_name = {"entity-name.network-buffer-chest"}
 network_buffer_chest_entity.localised_description = {"entity-description.network-buffer-chest"}
 network_buffer_chest_entity.minable = { mining_time = 0.1, result = "network-buffer-chest" }
-network_buffer_chest_entity.inventory_size = 160
+network_buffer_chest_entity.inventory_size = 60
+network_buffer_chest_entity.trash_inventory_size = 30
 network_buffer_chest_entity.render_not_in_network_icon = false
 
 -- Expose the new entities, items, recipes, and technology in one data batch.
@@ -242,7 +216,6 @@ data:extend({
   network_server_entity,
   network_cable_entity,
   network_connector,
-  network_absorber_cable_entity,
   network_fluid_input_entity,
   network_fluid_output_entity,
   network_terminal_entity,
@@ -277,7 +250,6 @@ data:extend({
     results = {},
   },
 
-  -- Item entries let the player place the cable, absorber cable, and terminal.
   {
     type = "item",
     name = "network-cable",
@@ -289,20 +261,6 @@ data:extend({
     subgroup = "intermediate-product",
     order = "z[network-cable]",
     place_result = "network-cable",
-    stack_size = 200,
-  },
-
-  {
-    type = "item",
-    name = "network-absorber-cable",
-    localised_name = {"item-name.network-absorber-cable"},
-    localised_description = {"item-description.network-absorber-cable"},
-    icons = network_absorber_cable_item_icons,
-    icon_size = network_absorber_cable_item_icon_size,
-    icon_mipmaps = network_absorber_cable_item_icon_mipmaps,
-    subgroup = "intermediate-product",
-    order = "z[network-absorber-cable]",
-    place_result = "network-absorber-cable",
     stack_size = 200,
   },
 
@@ -389,23 +347,6 @@ data:extend({
     },
     results = {
       { type = "item", name = "network-cable", amount = 2 },
-    },
-  },
-
-  {
-    type = "recipe",
-    name = "network-absorber-cable",
-    localised_name = {"recipe-name.network-absorber-cable"},
-    subgroup = "items-network",
-    order = "aa[network-absorber-cable]",
-    enabled = false,
-    energy_required = 1,
-    ingredients = {
-      { type = "item", name = "network-cable", amount = 3 },
-      { type = "item", name = "iron-plate", amount = 1 },
-    },
-    results = {
-      { type = "item", name = "network-absorber-cable", amount = 1 },
     },
   },
 
@@ -519,7 +460,6 @@ data:extend({
     },
     effects = {
       { type = "unlock-recipe", recipe = "network-cable" },
-      { type = "unlock-recipe", recipe = "network-absorber-cable" },
       { type = "unlock-recipe", recipe = "network-terminal" },
       { type = "unlock-recipe", recipe = "network-server" },
       { type = "unlock-recipe", recipe = "network-fluid-input" },

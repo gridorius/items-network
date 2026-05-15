@@ -25,8 +25,15 @@ function Gui:new()
     script.on_event(defines.events.on_gui_click, function(event) self:on_gui_click_handler(event) end)
     script.on_event(defines.events.on_gui_opened, function(event) self:on_gui_opened_handler(event) end)
     script.on_event(defines.events.on_gui_closed, function(event) self:on_gui_closed_handler(event) end)
-    script.on_nth_tick(1, function(event) self:on_tick_handler(event) end)
+    script.on_event(defines.events.on_tick, function(event) self:on_tick_handler(event) end)
     return self
+end
+
+function Gui:GetValue(value, player)
+    if type(value) == "function" then
+        return value(player)
+    end
+    return value
 end
 
 -- #region Gui event handlers
@@ -52,15 +59,11 @@ end
 
 function Gui:on_tick_handler(event)
     for player_index, queue in pairs(self.delay_queue) do
-        local bindings = queue[event.tick]
-        if bindings then
+        local data = queue[event.tick]
+        if data then
             local player = game.get_player(player_index)
-            for execute_after, binding in pairs(bindings) do
-                if game.tick >= execute_after then
-                    self:RenderInterface(player, binding)
-                    queue[execute_after] = nil
-                end
-            end
+            self:RenderInterface(player, data.binding, data.entity)
+            queue[event.tick] = nil
         end
     end
 end
@@ -72,9 +75,13 @@ function Gui:on_gui_opened_handler(event)
         if binding then
             if binding.delay and binding.delay > 0 then
                 self.delay_queue[event.player_index] = self.delay_queue[event.player_index] or {}
-                self.delay_queue[event.player_index][game.tick + binding.delay] = binding
+                self.delay_queue[event.player_index][game.tick + binding.delay] = {
+                    binding = binding,
+                    entity = entity,
+                }
+                return
             end
-            self:RenderInterface(game.get_player(event.player_index), binding)
+            self:RenderInterface(game.get_player(event.player_index), binding, entity)
         end
     end
     return self
@@ -93,11 +100,16 @@ end
 -- #endregion
 --#region Gui operations
 
-function Gui:RenderInterface(player, binding)
-    self:CloseInterface(player)
-    self.current_interface = binding.interface:RenderRoot(player, binding.target(player))
+function Gui:RenderInterface(player, binding, entity)
     if binding.replace then
-        player.opened = self.current_interface.element
+        self:CloseInterface(player)
+    end
+    local target = binding.target(player, entity)
+    if target then
+        self.current_interface = binding.interface:RenderRoot(player, target)
+        if binding.replace then
+            player.opened = self.current_interface.element
+        end
     end
 end
 
@@ -114,6 +126,12 @@ end
 function Gui:CloseInterface(player)
     player.opened = nil
     if self.current_interface then
+        if self.current_interface.root.on_close_handlers then
+            for i = 1, #self.current_interface.root.on_close_handlers do
+                local handler = self.current_interface.root.on_close_handlers[i]
+                handler(player, self.current_interface)
+            end
+        end
         self.current_interface.element.destroy()
         self.current_interface = nil
     end
@@ -121,6 +139,13 @@ end
 
 function Gui:SetStylesheet(stylesheet)
     self.stylesheet = stylesheet
+    return self
+end
+
+function Gui:AddStylesheet(stylesheet)
+    for class, style in pairs(stylesheet) do
+        self.stylesheet[class] = style
+    end
     return self
 end
 
@@ -140,7 +165,8 @@ end
 
 function Gui:CreateFrame(name, properties)
     return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "frame", name = name, direction = "vertical", draggable = true },
+        return parent.add(Gridorius.MergeProperties(
+            { type = "frame", name = name, direction = "vertical", draggable = true },
             properties))
     end)
 end
@@ -148,23 +174,24 @@ end
 function Gui:CreateDefaultFrame(name, title, properties)
     return
         Gridorius.InterfaceBuilder:new(self, name, function(parent)
-            return parent.add(Gridorius.MergeProperties({ type = "frame", name = name, direction = "vertical", draggable = true },
+            return parent.add(Gridorius.MergeProperties(
+                { type = "frame", name = name, direction = "vertical", draggable = true },
                 properties))
         end)
         :AfterCreate(function(frame)
             frame.auto_center = true
         end)
         :SetClasses({ "default_frame" })
-        :AppendChild(
+        :AppendChildrens(
             self:CreateFlow(name .. "_titlebar", "horizontal")
             :AppendChildrens(
-                self:CreateLabel(name .. "_title", title, {
+                self:CreateLabel(title, {
                     style = "frame_title",
                 }):AfterCreate(function(label)
                     label.drag_target = label.parent.parent
                 end),
 
-                self:CreateEmptyWidget(name .. "_drag", {
+                self:CreateEmptyWidget({
                     style = "draggable_space",
                 }):AfterCreate(function(widget)
                     widget.style.horizontally_stretchable = true
@@ -173,8 +200,10 @@ function Gui:CreateDefaultFrame(name, title, properties)
                     widget.drag_target = widget.parent.parent
                 end),
 
-                self:CreateCloseButton(name .. "_close_button")
-            )
+                self:CreateCloseButton()
+            ),
+            self:CreateSpace(24),
+            self:CreateLine()
         )
 end
 
@@ -186,8 +215,8 @@ function Gui:CreateFlow(name, direction, properties)
 end
 
 function Gui:CreateButton(name, caption, properties)
-    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "button", name = name, caption = caption }, properties))
+    return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
+        return parent.add(Gridorius.MergeProperties({ type = "button", name = name, caption = Gui:GetValue(caption, player) }, properties))
     end)
 end
 
@@ -206,33 +235,55 @@ function Gui:CreateCloseButton(properties)
 end
 
 function Gui:CreateSpriteButton(name, sprite, properties)
-    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "sprite-button", name = name, sprite = sprite }, properties))
+    return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
+        return parent.add(Gridorius.MergeProperties({ type = "sprite-button", name = name, sprite = Gui:GetValue(sprite, player) }, properties))
     end)
 end
 
-function Gui:CreateLabel(name, caption, properties)
-    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "label", name = name, caption = caption }, properties))
+function Gui:CreateLabel(caption, properties)
+    return Gridorius.InterfaceBuilder:new(self, nil, function(parent, player)
+        return parent.add(Gridorius.MergeProperties({ type = "label", caption = Gui:GetValue(caption, player) }, properties))
     end)
 end
 
-function Gui:CreateEmptyWidget(name, properties)
-    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "empty-widget", name = name }, properties))
+function Gui:CreateEmptyWidget(properties)
+    return Gridorius.InterfaceBuilder:new(self, nil, function(parent)
+        return parent.add(Gridorius.MergeProperties({ type = "empty-widget" }, properties))
+    end)
+end
+
+function Gui:CreateLine(direction, properties)
+    direction = direction or "horizontal"
+    return Gridorius.InterfaceBuilder:new(self, nil, function(parent)
+        return parent.add(Gridorius.MergeProperties({ type = "line", direction = direction }, properties))
+    end)
+end
+
+function Gui:CreateSpace(size, type)
+    type = type or "horizontal"
+    return self:CreateEmptyWidget():AfterCreate(function(widget)
+        if type == "horizontal" then
+            widget.style.horizontally_stretchable = true
+            widget.style.width = size or 1
+        elseif type == "vertical" then
+            widget.style.vertically_stretchable = true
+            widget.style.height = size or 1
+        end
     end)
 end
 
 function Gui:CreateScroll(name, direction, properties)
     direction = direction or "vertical"
     return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "scroll-pane", name = name, direction = direction }, properties))
+        return parent.add(Gridorius.MergeProperties({ type = "scroll-pane", name = name, direction = direction },
+            properties))
     end)
 end
 
 function Gui:CreateTable(name, column_count, properties)
     return Gridorius.InterfaceBuilder:new(self, name, function(parent)
-        return parent.add(Gridorius.MergeProperties({ type = "table", name = name, column_count = column_count }, properties))
+        return parent.add(Gridorius.MergeProperties({ type = "table", name = name, column_count = column_count },
+            properties))
     end)
 end
 

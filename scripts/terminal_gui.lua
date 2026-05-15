@@ -1,209 +1,19 @@
-Gui = require("scripts.gui_lib")
-
-local gui = {
-	current_group = nil,
-	current_pipe = nil
-}
-
-local FRAME_NAME = "items_network_terminal_frame"
-local CONTENT_NAME = "items_network_terminal_content"
-local GROUP_TABLE = "items_network_terminal_group_table"
-local MACHINE_TABLE = "items_network_terminal_machine_table"
-local ITEMS_TABLE = "items_network_terminal_items_table"
-local PIPE_FRAME_NAME = "items_network_pipe_frame"
-local network_logic = nil
-
-local function get_player(player_index)
-	local player = game.get_player(player_index)
-
-	if player and player.valid then
-		return player
-	end
-
-	return nil
-end
-
-local function destroy_frame(player)
-	local screen_frame = player.gui.screen[FRAME_NAME]
-	local left_frame = player.gui.left[FRAME_NAME]
-	local pipe_frame = player.gui.screen[PIPE_FRAME_NAME]
-
-	if screen_frame then
-		if player.opened == screen_frame then
-			player.opened = nil
-		end
-
-		screen_frame.destroy()
-	end
-
-	if left_frame then
-		left_frame.destroy()
-	end
-
-	if pipe_frame then
-		pipe_frame.destroy()
-	end
-end
-
-local function add_empty_buttons(item_index, this_table)
-    local count = 10 - item_index % 10
-    if count < 10 then
-        for _ = 1, 10 - item_index % 10 do
-            local bt = this_table.add { type = 'sprite-button' }
-            bt.enabled = false
-            bt.style = 'slot_button'
-        end
-    end
-end
-
-gui.bind_network_logic = function(logic)
-	network_logic = logic
-end
-
-gui.render_interface = function(player, entity)
-	if not network_logic then
-		return
-	end
-
-	gui.current_network = network_logic.get_network_by_terminal(entity)
-
-	local frame = player.gui.screen.add({
-		type = "frame",
-		name = FRAME_NAME,
-		direction = "vertical",
-		draggable = true,
-	})
-
-	player.opened = frame
-	frame.auto_center = true
-	frame.style.minimal_width = 500
-	frame.style.minimal_height = 500
-	frame.style.maximal_height = 920
-	local titlebar = frame.add({ type = "flow", direction = "horizontal" })
-	titlebar.drag_target = frame
-	titlebar.style.horizontally_stretchable = true
-	titlebar.style.top_padding = 4
-	titlebar.style.bottom_padding = 4
-
-	local title = titlebar.add({ type = "label", style = "frame_title", caption = { "gui.items-network-terminal-title" } })
-	title.style.single_line = true
-	local drag_widget = titlebar.add{type = "empty-widget", style = "draggable_space", ignored_by_interaction = true}
-	drag_widget.style.horizontally_stretchable = true
-	drag_widget.drag_target = frame
-	drag_widget.style.height = 30
-	drag_widget.style.width = 500
-
-	titlebar.add{
-			type = "sprite-button",
-			name = "close_button",
-			sprite = "utility/close",
-			hovered_sprite = "utility/close_black",
-			style = "frame_action_button",
-			mouse_button_filter = {"left"}
+local Gui = Gridorius.Gui
+Gui:AddStylesheet({
+	spacing_5 = {
+		horizontal_spacing = 5,
+		vertical_spacing = 5,
 	}
+})
 
+local TerminalGui = {}
 
-	local spacer = titlebar.add({ type = "empty-widget" })
-	spacer.style.horizontally_stretchable = true
-	spacer.style.height = 24
+function TerminalGui.render_fuels(player, table)
+	table.clear()
+	local current_network = Gridorius.state:get_player(player.index, "network")
 
-	frame.add({ type = "line", direction = "horizontal" })
-	frame.force_auto_center()
-	frame.bring_to_front()
-
-	local content = frame.add({
-		type = "flow",
-		name = CONTENT_NAME,
-		direction = "horizontal",
-	})
-
-	local left_section = content.add{type="flow", name="left_section", direction="vertical"}
-	-- left_section.style.width = 500
-
-	local right_section = content.add{type="flow", name="right_section", direction="vertical"}
-	-- right_section.style.width = 300
-
-	content.style.vertically_stretchable = true
-	content.style.horizontally_stretchable = true
-	content.style.padding = 8
-
-	left_section.add({ type = "label", caption = "ID сети " .. gui.current_network.id })
-	left_section.add({ type = "label", caption = "Машины в сети" })
-
-	right_section.add({ type = "label", caption = "Использовать топливо" })
-	local fuel_table = right_section.add{type="table", name = "fuel_table", column_count = 5}
-	fuel_table.style.horizontal_spacing = 5
-	fuel_table.style.vertical_spacing = 5
-	gui.render_fuel_section(player)
-
-	local machine_table = left_section.add{
-		type = "table",
-		name = MACHINE_TABLE,
-		column_count = 10,
-	}
-
-	-- render machines
-
-	local machine_summary = {}
-
-	if not gui.current_network then
-		return
-	end
-
-	for _, machine_entity in pairs(gui.current_network.storage.machines) do
-		if  machine_entity.valid then
-			if not machine_summary[machine_entity.name] then
-				machine_summary[machine_entity.name] = {
-					type="sprite-button", 
-					sprite="item/"..machine_entity.name, 
-					name=machine_entity.name,
-					number = 1
-				}
-			else
-				machine_summary[machine_entity.name].number = machine_summary[machine_entity.name].number + 1
-			end
-		end
-	end
-
-	for _, sum in pairs(machine_summary) do
-		machine_table.add(sum)
-	end
-
-	local group_table = left_section.add { name = GROUP_TABLE, type = "table", style = 'editor_mode_selection_table', column_count = 6 }
-
-	for name, group in pairs(prototypes.item_group) do
-		if not gui.current_group then
-			gui.current_group = name
-		end
-		 local bt = group_table.add {
-            type = 'sprite-button',
-            sprite = 'item-group/' .. name,
-            name = name,
-			tags = {
-				type = 'item_group',
-			},
-            tooltip = group.localised_name
-        }
-        bt.enabled = true
-        bt.style = 'filter_group_button_tab_slightly_larger'
-	end
-
-	local scroll = left_section.add{type="scroll-pane", name = "items_scroll"}
-	scroll.style.maximal_height = 800
-	local items_table = scroll.add{type="table", name = ITEMS_TABLE, column_count=10}
-	items_table.style.horizontal_spacing = 5
-	items_table.style.vertical_spacing = 5
-
-	gui.render_items(player)
-
-	return content
-end
-
-function gui.render_fuel_section(player)
-	local fuel_table = player.gui.screen[FRAME_NAME][CONTENT_NAME].right_section.fuel_table
-	fuel_table.clear()
+	if not current_network then return end
 	local fuel_items = {}
-
 	for name, item in pairs(prototypes.item) do
 		if item.fuel_value and item.fuel_value > 0 then
 			fuel_items[name] = item
@@ -213,91 +23,122 @@ function gui.render_fuel_section(player)
 	for fuel_name, _ in pairs(fuel_items) do
 		local fuel_item = prototypes.item[fuel_name]
 		if fuel_item and fuel_item.fuel_value and fuel_item.fuel_value > 0 then
-			local use = gui.current_network.storage.use_fuels[fuel_name] or false
-			local button = fuel_table.add{
-				type="sprite-button", 
-				sprite="item/"..fuel_name, 
-				name=fuel_name,
+			local use = current_network.storage.use_fuels[fuel_name] or false
+			Gui:CreateSpriteButton(fuel_name, "item/" .. fuel_name, {
 				tags = {
 					type = 'fuel',
 					fuel_name = fuel_name,
 				},
 				toggle_mode = true,
 				toggled = use,
-			}
-			button.style.size = 40
+			}):AfterCreate(function(element)
+				element.style.size = 40
+			end):RenderElement(player, table)
 		end
 	end
 end
 
-function gui.render_quality_pack(current_group_items, quality, items_table)
-	for subgroup_name, subgroup_items in pairs(current_group_items) do
+function TerminalGui.render_groups(player, table)
+	table.clear()
+	local selected_group = Gridorius.state:get_player(player.index, "current_group")
+	for name, group in pairs(prototypes.item_group) do
+		if not selected_group then
+			selected_group = name
+			Gridorius.state:set_player(player.index, "current_group", name)
+		end
+		Gui:CreateSpriteButton(name, "item-group/" .. name, {
+			tags = {
+				type = 'item_group',
+				group_name = name,
+			},
+			toggle_mode = true,
+			toggled = selected_group == name,
+			tooltip = group.localised_name,
+			style = 'filter_group_button_tab_slightly_larger'
+		}):AfterCreate(function(element)
+			element.enabled = true
+		end):RenderElement(player, table)
+	end
+end
+
+function TerminalGui.add_empty_buttons(index, table)
+	local count = 10 - index % 10
+	if count < 10 then
+		for _ = 1, 10 - index % 10 do
+			local bt = table.add { type = 'sprite-button' }
+			bt.enabled = false
+			bt.style = 'slot_button'
+		end
+	end
+end
+
+function TerminalGui.render_quality_pack(network, player, current_group_items, quality, items_table)
+	for _, subgroup_items in pairs(current_group_items) do
 		local index = 0
 		for _, item in pairs(subgroup_items) do
-			if(gui.current_network.storage.items[item.name] and gui.current_network.storage.items[item.name][quality] ~= nil) then
+			if network.inventory.items[item.name] and network.inventory.items[item.name][quality] ~= nil then
 				index = index + 1
-				items_table.add{
-					type="sprite-button", 
-					sprite="item/"..item.name, 
-					name=item.name .. ":" .. quality,
+				Gui:CreateSpriteButton(item.name .. ":" .. quality, "item/" .. item.name, {
 					tags = {
 						type = 'item',
 						item_name = item.name,
 						quality = quality,
 					},
 					quality = quality,
-					number = gui.current_network.storage.items[item.name][quality],
+					number = network.inventory.items[item.name][quality],
 					elem_tooltip = {
 						type = quality == "normal" and 'item' or 'item-with-quality',
 						name = item.name,
 						quality = quality,
 					}
-				}
+				}):AfterCreate(function(element)
+					element.style.size = 40
+				end):RenderElement(player, items_table)
 			end
 		end
 		if index > 0 then
-			add_empty_buttons(index, items_table)
+			TerminalGui.add_empty_buttons(index, items_table)
 		end
 	end
 end
 
-function gui.render_fluids(fluids, items_table)
+function TerminalGui.render_fluids(network, fluids, player, table)
 	for fluid_name, fluid in pairs(fluids) do
-		if(gui.current_network.storage.fluids[fluid_name] ~= nil) then
-			for temperature, amount in pairs(gui.current_network.storage.fluids[fluid_name]) do
-				items_table.add{
-						type="sprite-button", 
-						sprite="fluid/"..fluid_name, 
-						name = fluid_name .. ":" .. temperature,
-						tags = {
-							type = 'fluid',
-							item_name = fluid_name,
-							temperature = temperature,
-						},
-						number = gui.current_network.storage.fluids[fluid_name][temperature],
-						tooltip = {"", {"fluid-name." .. fluid_name}, temperature .. "°C"}
-					}
+		if network.inventory.fluids[fluid_name] then
+			for temperature, amount in pairs(network.inventory.fluids[fluid_name]) do
+				Gui:CreateSpriteButton(fluid_name .. ":" .. temperature, "fluid/" .. fluid_name, {
+					tags = {
+						type = 'fluid',
+						item_name = fluid_name,
+						temperature = temperature,
+					},
+					number = amount,
+					tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" }
+				}):AfterCreate(function(element)
+					element.style.size = 40
+				end):RenderElement(player, table)
 			end
 		end
 	end
 end
 
-function gui.render_items(player)
-	local items_table = player.gui.screen[FRAME_NAME][CONTENT_NAME].left_section.items_scroll[ITEMS_TABLE]
+function TerminalGui.render_group_data(player, data_table)
+	data_table.clear()
+	local current_network = Gridorius.state:get_player(player.index, "network")
+	if not current_network then return end
 	local items = prototypes.item;
 	local fluids = prototypes.fluid;
 	local tiers = prototypes.quality;
-	items_table.clear()
+	local current_group = Gridorius.state:get_player(player.index, "current_group")
 
-
-	if(gui.current_group == "fluids") then
-		gui.render_fluids(fluids, items_table)
+	if (current_group == "fluids") then
+		TerminalGui.render_fluids(current_network, fluids, player, data_table)
 		return
 	end
 
 	local current_group_items = {}
 	for name, item in pairs(items) do
-		if item.group.name == gui.current_group then
+		if item.group.name == current_group then
 			if not current_group_items[item.subgroup.name] then
 				current_group_items[item.subgroup.name] = {}
 			end
@@ -306,202 +147,204 @@ function gui.render_items(player)
 	end
 
 	if not tiers then
-		gui.render_quality_pack(current_group_items, "normal", items_table)
+		TerminalGui.render_quality_pack(current_network, player, current_group_items, "normal", data_table)
 		return
 	end
 	for quality, _ in pairs(tiers) do
-		gui.render_quality_pack(current_group_items, quality, items_table)
+		TerminalGui.render_quality_pack(current_network, player, current_group_items, quality, data_table)
 	end
 end
 
-function gui.on_gui_click(event)
-	-- The GUI has three click paths: refresh, close, or take an item from storage.
-	local player = get_player(event.player_index)
+function TerminalGui.render_machines(player, table)
+	local current_network = Gridorius.state:get_player(player.index, "network")
+	if not current_network then return end
 
-	if not player then
-		return
-	end
-
-	local element = event.element
-
-	if element and element.valid and element.name == "close_button" then
-		gui.close(player)
-		return
-	end
-
-	if element.tags then
-
-		if element.tags.type == 'select_pipe_fluid' then
-			-- Clicked a fluid in the pipe interface, so set that fluid as the pipe's filter.
-			local selected_fluid = element.tags.fluid
-			local selected_temperature = element.tags.temperature
-			local fluid_selection_table = player.gui.screen[PIPE_FRAME_NAME].pipe_content.fluid_selection_table
-			if gui.current_pipe and gui.current_pipe.valid then
-				storage.pipes[gui.current_pipe.unit_number].fluid_name = selected_fluid
-				storage.pipes[gui.current_pipe.unit_number].temperature = selected_temperature
-
-				for _, child in pairs(fluid_selection_table.children) do
-					child.toggled = false
-				end
-				element.toggled = true
+	local entity_summary = {}
+	for _, entity_data in pairs(current_network.entities) do
+		local entity = entity_data.entity
+		if entity.valid then
+			if not entity_summary[entity.name] then
+				entity_summary[entity.name] = {
+					sprite = "item/" .. entity.name,
+					name = entity.name,
+					number = 1
+				}
+			else
+				entity_summary[entity.name].number = entity_summary[entity.name].number + 1
 			end
-			return
 		end
+	end
 
-		if element.tags.type == 'item_group' then
-			-- Clicked an item group, so filter the table by that group.
-			local content = player.gui.screen[FRAME_NAME][CONTENT_NAME].left_section
-			gui.current_group = element.name
-			gui.render_items(player)
-			if content and content.valid then
-				local group_table = content[GROUP_TABLE]
+	for _, sum in pairs(entity_summary) do
+		Gui:CreateSpriteButton(sum.name, sum.sprite, {
+			number = sum.number
+		}):RenderElement(player, table)
+	end
+end
 
-				if group_table and group_table.valid then
-					for _, child in pairs(group_table.children) do
-						child.toggled = false
-					end
+function TerminalGui.render_fluid_selector(network, player, table)
+	table.clear()
+	local current_pipe = Gridorius.state:get_player(player.index, "current_pipe")
+	if not current_pipe then return end
+	local pipe_data = network:GetEntityData(current_pipe)
+	if not pipe_data then return end
 
+	for fluid_name, temperatures in pairs(network.inventory.fluids) do
+		for temperature, _ in pairs(temperatures) do
+			Gui:CreateSpriteButton(fluid_name .. ":" .. temperature, "fluid/" .. fluid_name, {
+				tags = {
+					type = 'select_pipe_fluid',
+					fluid = fluid_name,
+					temperature = temperature,
+				},
+				number = temperature,
+				tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" },
+				toggle_mode = true,
+			}):AfterCreate(function(element)
+				element.style.size = 40
+				if pipe_data.fluid_name == fluid_name and pipe_data.temperature == temperature then
 					element.toggled = true
 				end
-			end
-
-			return
+			end):RenderElement(player, table)
 		end
-
-		if element.tags.type == 'item' then
-			-- Clicked an item, so attempt to take it from storage and put it in the player's inventory.
-			local item_name = element.tags.item_name
-			local quality = element.tags.quality
-			local item_stack_size = prototypes.item[item_name].stack_size
-
-			local count = math.floor(item_stack_size / 2)
-			if(event.shift) then
-				count = item_stack_size
-			end
-
-			if gui.current_network:get_item_count(item_name, quality) > 0 then
-				gui.current_network:move_to_inventory({name = item_name, quality = quality}, count, player)
-				gui.render_items(player)
-			end
-
-			return
-		end
-
-		if element.tags.type == 'fuel' then
-			-- Clicked a fuel, so toggle its use in the network.
-			local fuel_name = element.tags.fuel_name
-			local use = not (gui.current_network.storage.use_fuels[fuel_name] or false)
-			gui.current_network.storage.use_fuels[fuel_name] = use
-			element.toggled = use
-			return
-		end
-	end
-
-	if not (element and element.valid) then
-		return
 	end
 end
 
-function gui.close(player)
-	-- Closing a terminal window also clears the stored per-player GUI state.
-	destroy_frame(player)
-end
+Gui:on_tagged_click(function(tags, event)
+	local player = game.get_player(event.player_index)
+	local current_network = Gridorius.state:get_player(event.player_index, "network")
+	local element = event.element
+	if not current_network or not player then return end
 
-function gui.on_gui_closed(event)
-	-- Any closed GUI should clear its terminal state so stale windows do not linger in storage.
-	local player = get_player(event.player_index)
+	if tags.type == "item_group" then
+		Gridorius.state:set_player(player.index, "current_group", tags.group_name)
+		local group_table = player.gui.screen.terminal_frame.content.left.group_table
+		TerminalGui.render_groups(player, group_table)
+		local items_table = player.gui.screen.terminal_frame.content.left.items_scroll.items_table
+		TerminalGui.render_group_data(player, items_table)
+	elseif tags.type == "fuel" then
+		local use_fuels = current_network.storage.use_fuels
+		use_fuels[tags.fuel_name] = not use_fuels[tags.fuel_name]
+		local fuel_table = player.gui.screen.terminal_frame.content.right.fuel_table
+		TerminalGui.render_fuels(player, fuel_table)
+	elseif tags.type == "item" then
+		local item_name = element.tags.item_name
+		local quality = element.tags.quality
+		local item_stack_size = prototypes.item[item_name].stack_size
 
-	if not player then
-		return
+		local count = math.floor(item_stack_size / 2)
+		if (event.shift) then
+			count = item_stack_size
+		end
+
+		if current_network.inventory:GetItemCount(item_name, quality) > 0 then
+			current_network.inventory:MoveToInventory({ name = item_name, quality = quality }, count, player)
+			TerminalGui.render_group_data(player, player.gui.screen.terminal_frame.content.left.items_scroll.items_table)
+		end
+	elseif tags.type == "select_pipe_fluid" then
+		local current_pipe = Gridorius.state:get_player(player.index, "current_pipe")
+		local fluid_name = element.tags.fluid
+		local temperature = element.tags.temperature
+
+		local pipe_data = current_network.entities[current_pipe.unit_number]
+		if pipe_data then
+			pipe_data.fluid = fluid_name
+			pipe_data.temperature = temperature
+		end
+
+		storage.network_entities[current_pipe.unit_number].fluid_name = fluid_name
+		storage.network_entities[current_pipe.unit_number].temperature = temperature
+		local pipe_table = player.gui.screen.fluid_output_frame.fluids_table
+		TerminalGui.render_fluid_selector(current_network, player, pipe_table)
 	end
+end)
 
-	gui.close(player)
-end
+function TerminalGui.BindInterfaces()
+	local network_system = Gridorius.state:get("network_system")
+	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", "Терминал сети")
+		:AppendChild(
+			Gui:CreateFlow("content")
+			:AppendChildrens(
+				Gui:CreateFlow("left", "vertical")
+				:AppendChildrens(
+					Gui:CreateTable("group_table", 6, {
+						style = "editor_mode_selection_table"
+					})
+					:AfterCreate(function(table, player)
+						TerminalGui.render_groups(player, table)
+					end),
+					Gui:CreateScroll("items_scroll")
+					:AfterCreate(function(scroll)
+						scroll.style.height = 500
+					end)
+					:AppendChild(
+						Gui:CreateTable("items_table", 10)
+						:SetClasses("spacing_5")
+						:AfterCreate(function(table, player)
+							TerminalGui.render_group_data(player, table)
+						end)
+					)
+				),
+				Gui:CreateSpace(10, "vertical"),
+				Gui:CreateFlow("right", "vertical")
+				:AppendChildrens(
+					Gui:CreateLabel(function(player)
+						local network = Gridorius.state:get_player(player.index, "network")
+						return "Сеть: " .. network.id
+					end),
+					Gui:CreateLabel(function(player)
+						local network = Gridorius.state:get_player(player.index, "network")
+						return "Тиков на полную обработку: " .. network.storage.distribute_index
+					end),
+					Gui:CreateLabel("Сущности в сети"),
+					Gui:CreateTable("machines_table", 5)
+					:SetClasses("spacing_5")
+					:AfterCreate(function(table, player)
+						TerminalGui.render_machines(player, table)
+					end),
+					Gui:CreateLabel("Использовать  топливо"),
+					Gui:CreateTable("fuel_table", 5)
+					:SetClasses("spacing_5")
+					:AfterCreate(function(table, player)
+						TerminalGui.render_fuels(player, table)
+					end)
+				)
+			)
+		)
 
-gui.on_gui_open = function(event)
-	if not network_logic then
-		return
-	end
-
-	local player = get_player(event.player_index)
-
-	if not player then
-		return
-	end
-
-	if event.element and event.element.valid and event.element.name == FRAME_NAME then
-		return
-	end
-
-	if event.entity and event.entity.name == "network-fluid-output" then
-		player.opened = nil
-		gui.current_pipe = event.entity
-		gui.current_network = network_logic.get_network_by_pipe(event.entity)
-		local frame = player.gui.screen.add({
-			type = "frame",
-			name = PIPE_FRAME_NAME,
-			direction = "vertical",
-			draggable = true,
-		})
-		frame.auto_center = true
-		frame.style.minimal_width = 200
-		frame.style.maximal_height = 100
-		local titlebar = frame.add({ type = "flow", direction = "horizontal" })
-		titlebar.drag_target = frame
-		titlebar.style.horizontally_stretchable = true
-		titlebar.style.top_padding = 4
-		titlebar.style.bottom_padding = 4
-
-		local title = titlebar.add({ type = "label", style = "frame_title", caption = "Выберите жидкость" })
-		title.style.single_line = true
-		titlebar.add{
-			type = "sprite-button",
-			name = "close_button",
-			sprite = "utility/close",
-			hovered_sprite = "utility/close_black", -- Common practice for visual feedback
-			style = "frame_action_button",
-			mouse_button_filter = {"left"}
-		}
-
-		local content = frame.add({
-			type = "flow",
-			name = "pipe_content",
-			direction = "horizontal",
-		})
-
-		local fluid_table = content.add{type="table", name = "fluid_selection_table", column_count= 10}
-		fluid_table.style.horizontal_spacing = 5
-		fluid_table.style.vertical_spacing = 5
-		
-		for fluid_name, temperatures in pairs(gui.current_network.storage.fluids) do
-			for temperature, _ in pairs(temperatures) do
-				local fluid_element = fluid_table.add{
-					type="sprite-button", 
-					sprite="fluid/"..fluid_name, 
-					name = fluid_name .. ":" .. temperature,
-					tags = {
-						type = 'select_pipe_fluid',
-						fluid = fluid_name,
-						temperature = temperature,
-					},
-					number = temperature,
-					tooltip = {"", {"fluid-name." .. fluid_name}, temperature .. "°C"}
-				}
-
-				if storage.pipes[gui.current_pipe.unit_number] and storage.pipes[gui.current_pipe.unit_number].fluid_name == fluid_name and storage.pipes[gui.current_pipe.unit_number].temperature == temperature then
-					fluid_element.toggled = true
+	local pipe_interface =
+		Gui:CreateDefaultFrame("fluid_output_frame", "Вывод жидкости")
+		:AppendChildrens(
+			Gui:CreateTable("fluids_table", 10)
+			:SetClasses("spacing_5")
+			:AfterCreate(function(table, player)
+				local network = Gridorius.state:get_player(player.index, "network")
+				if network then
+					TerminalGui.render_fluid_selector(network, player, table)
 				end
-			end
-		end
-		return
-	end
+			end)
+		)
 
-	if event.entity and network_logic.is_terminal(event.entity) then
-		player.opened = nil
-		gui.render_interface(player, event.entity)
-	else
-		gui.close(player)
-	end
+
+	Gui:BindInterface("network-terminal", terminal_interface, function(player, entity)
+		local network = network_system:GetNetworkByEntity(entity)
+		if network then
+			Gridorius.state:set_player(player.index, "network", network)
+			return player.gui.screen
+		end
+		return nil
+	end, true)
+
+
+	Gui:BindInterface("network-fluid-output", pipe_interface, function(player, entity)
+		local network = network_system:GetNetworkByEntity(entity)
+		if network then
+			Gridorius.state:set_player(player.index, "network", network)
+			Gridorius.state:set_player(player.index, "current_pipe", entity)
+			return player.gui.screen
+		end
+		return nil
+	end, true)
 end
 
-return gui
+return TerminalGui
