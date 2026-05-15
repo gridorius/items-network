@@ -11,7 +11,7 @@ function Network:new(network_id)
     self.signals = {}
 
     self.storage.distribute_index = self.storage.distribute_index or 1
-    self.storage.distribute_current = self.storage.distribute_current or settings.global.network_machines_per_tick
+    self.storage.distribute_current = self.storage.distribute_current or settings.global.network_machines_per_tick.value
 
     return self
 end
@@ -89,7 +89,7 @@ end
 function Network:ResetEntities()
     self.storage.entities = {}
     self.storage.distribute_index = 1
-    self.storage.distribute_current = settings.global.network_machines_per_tick
+    self.storage.distribute_current = settings.global.network_machines_per_tick.value
     self.entities = self.storage.entities
 end
 
@@ -115,7 +115,7 @@ function Network:GetDistributeIndex()
     local index = self.storage.distribute_index
     if self.storage.distribute_current <= 0 then
         self.storage.distribute_index = self.storage.distribute_index + 1
-        self.storage.distribute_current = settings.global.network_machines_per_tick
+        self.storage.distribute_current = settings.global.network_machines_per_tick.value
     end
 
     self.storage.distribute_current = self.storage.distribute_current - 1

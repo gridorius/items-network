@@ -233,11 +233,14 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
         recipe_quality = recipe_quality and recipe_quality.name or "normal"
 
         -- handle recipe
-        if recipe and machine.active and input_inventory and not input_inventory.is_full() then
+        if recipe and machine.active and input_inventory then
             for _, ingredient in pairs(recipe.ingredients) do
                 if ingredient.type == "item" then
-                    local ingredient_name = ingredient.name
                     local ingredient_quality = recipe_quality or "normal"
+                    if not input_inventory.can_insert(ingredient.name) then
+                        goto next_ingriedient
+                    end
+                    local ingredient_name = ingredient.name
                     local max_move = math.ceil(prototypes.item[ingredient.name].stack_size / 5)
                     self:MoveToInventory({ name = ingredient_name, quality = ingredient_quality }, max_move,
                         input_inventory)
@@ -255,6 +258,7 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
                         end
                     end
                 end
+                ::next_ingriedient::
             end
         end
 
@@ -307,7 +311,7 @@ function VirtualInventory:ProcessBufferChest(chest)
     self:CollectInventory(trash)
 
     if inventory:IsFull() or not filters then
-         return
+        return
     end
 
     for i = 1, #filters do

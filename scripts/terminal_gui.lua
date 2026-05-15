@@ -261,7 +261,7 @@ end)
 
 function TerminalGui.BindInterfaces()
 	local network_system = Gridorius.state:get("network_system")
-	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", "Терминал сети")
+	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", {"gui.items-network-terminal-title"})
 		:AppendChild(
 			Gui:CreateFlow("content")
 			:AppendChildrens(
@@ -290,19 +290,19 @@ function TerminalGui.BindInterfaces()
 				:AppendChildrens(
 					Gui:CreateLabel(function(player)
 						local network = Gridorius.state:get_player(player.index, "network")
-						return "Сеть: " .. network.id
+						return {"gui.items-network-terminal-network-value", network.id}
 					end),
 					Gui:CreateLabel(function(player)
 						local network = Gridorius.state:get_player(player.index, "network")
-						return "Тиков на полную обработку: " .. network.storage.distribute_index
+						return {"gui.items-network-full-processing-ticks", network.storage.distribute_index}
 					end),
-					Gui:CreateLabel("Сущности в сети"),
+					Gui:CreateLabel({"gui.items-network-network-entities"}),
 					Gui:CreateTable("machines_table", 5)
 					:SetClasses("spacing_5")
 					:AfterCreate(function(table, player)
 						TerminalGui.render_machines(player, table)
 					end),
-					Gui:CreateLabel("Использовать  топливо"),
+					Gui:CreateLabel({"gui.items-network-use-fuel"}),
 					Gui:CreateTable("fuel_table", 5)
 					:SetClasses("spacing_5")
 					:AfterCreate(function(table, player)
@@ -313,7 +313,7 @@ function TerminalGui.BindInterfaces()
 		)
 
 	local pipe_interface =
-		Gui:CreateDefaultFrame("fluid_output_frame", "Вывод жидкости")
+		Gui:CreateDefaultFrame("fluid_output_frame", {"gui.items-network-fluid-output-window-title"})
 		:AppendChildrens(
 			Gui:CreateTable("fluids_table", 10)
 			:SetClasses("spacing_5")

@@ -234,7 +234,11 @@ function NetworkSystem:DestroyInvalidConnections(network)
                                 stack = { name = neighbor.name, count = 1 }
                             }
                             neighbor.destroy()
-                            game.print("Destroyed invalid connection at")
+                            game.print({
+                                "message.items-network-invalid-connection-destroyed",
+                                math.floor(neighbor.position.x),
+                                math.floor(neighbor.position.y)
+                            })
                         end
                     end
                 end
@@ -295,7 +299,7 @@ function NetworkSystem:HandleBuildEntity(event)
             }
             self:RemoveConnectors(entity)
             entity.destroy()
-            game.print("Cannot place server because it is already connected to a network.")
+            game.print({"message.items-network-server-already-connected"})
             return
         end
 
@@ -305,7 +309,7 @@ function NetworkSystem:HandleBuildEntity(event)
         }
 
         local new_network_id = self:BuildNetwork(entity)
-        game.print("Built network with id " .. new_network_id)
+        game.print({"message.items-network-built-network", new_network_id})
         return
     end
 
