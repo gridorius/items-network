@@ -3,7 +3,12 @@ Gui:AddStylesheet({
 	spacing_5 = {
 		horizontal_spacing = 5,
 		vertical_spacing = 5,
-	}
+	},
+	fluid_sprite_button = {
+		font_color = { r = 255, g = 255, b = 255 },
+		font = "default-bold",
+		font_size = 14,
+	},
 })
 
 local TerminalGui = {}
@@ -63,21 +68,22 @@ end
 
 function TerminalGui.add_empty_buttons(index, table)
 	local count = 10 - index % 10
-	if count < 10 then
+	if count <= 10 then
 		for _ = 1, 10 - index % 10 do
-			local bt = table.add { type = 'sprite-button' }
-			bt.enabled = false
-			bt.style = 'slot_button'
+			local button = table.add { type = 'button' }
+			button.style.size = 30
+			button.enabled = false
+			button.style.margin = 5
 		end
 	end
 end
 
-function TerminalGui.render_quality_pack(network, player, current_group_items, quality, items_table)
+function TerminalGui.render_quality_pack(network, player, current_group_items, quality, items_table, row_index)
 	for _, subgroup_items in pairs(current_group_items) do
-		local index = 0
+		local cell_index = 0
 		for _, item in pairs(subgroup_items) do
 			if network.inventory.items[item.name] and network.inventory.items[item.name][quality] ~= nil then
-				index = index + 1
+				cell_index = cell_index + 1
 				Gui:CreateSpriteButton(item.name .. ":" .. quality, "item/" .. item.name, {
 					tags = {
 						type = 'item',
@@ -90,16 +96,19 @@ function TerminalGui.render_quality_pack(network, player, current_group_items, q
 						type = quality == "normal" and 'item' or 'item-with-quality',
 						name = item.name,
 						quality = quality,
-					}
+					},
+					style = "slot_button",
 				}):AfterCreate(function(element)
 					element.style.size = 40
 				end):RenderElement(player, items_table)
 			end
 		end
-		if index > 0 then
-			TerminalGui.add_empty_buttons(index, items_table)
+		if cell_index > 0 then
+			row_index = row_index + 1
+			TerminalGui.add_empty_buttons(cell_index, items_table)
 		end
 	end
+	return row_index
 end
 
 function TerminalGui.render_fluids(network, fluids, player, table)
@@ -113,10 +122,13 @@ function TerminalGui.render_fluids(network, fluids, player, table)
 						temperature = temperature,
 					},
 					number = amount,
-					tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" }
-				}):AfterCreate(function(element)
-					element.style.size = 40
-				end):RenderElement(player, table)
+					caption = "[color=white]" .. temperature .. "°C[/color]",
+					tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" },
+					style = "slot_button",
+				})
+					:AfterCreate(function(element)
+						element.style.size = 40
+					end):RenderElement(player, table)
 			end
 		end
 	end
@@ -146,16 +158,25 @@ function TerminalGui.render_group_data(player, data_table)
 		end
 	end
 
+	local row_index = 0
 	if not tiers then
-		TerminalGui.render_quality_pack(current_network, player, current_group_items, "normal", data_table)
+		row_index = TerminalGui.render_quality_pack(current_network, player, current_group_items, "normal", data_table, row_index)
 		return
 	end
 	for quality, _ in pairs(tiers) do
-		TerminalGui.render_quality_pack(current_network, player, current_group_items, quality, data_table)
+		row_index = TerminalGui.render_quality_pack(current_network, player, current_group_items, quality, data_table,
+			row_index)
+	end
+
+	if row_index < 10 then
+		for _ = 1, 10 - row_index do
+			TerminalGui.add_empty_buttons(0, data_table)
+		end
 	end
 end
 
 function TerminalGui.render_machines(player, table)
+	table.clear()
 	local current_network = Gridorius.state:get_player(player.index, "network")
 	if not current_network then return end
 
@@ -210,7 +231,7 @@ function TerminalGui.render_fluid_selector(network, player, table)
 	end
 end
 
-Gui:on_tagged_click(function(tags, event)
+Gui:OnTaggedClick(function(tags, event)
 	local player = game.get_player(event.player_index)
 	local current_network = Gridorius.state:get_player(event.player_index, "network")
 	local element = event.element
@@ -261,11 +282,13 @@ end)
 
 function TerminalGui.BindInterfaces()
 	local network_system = Gridorius.state:get("network_system")
-	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", {"gui.items-network-terminal-title"})
+	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", { "gui.items-network-terminal-title" })
 		:AppendChild(
 			Gui:CreateFlow("content")
 			:AppendChildrens(
-				Gui:CreateFlow("left", "vertical")
+				Gui:CreateFrame("left", {
+					style = "entity_frame",
+				})
 				:AppendChildrens(
 					Gui:CreateTable("group_table", 6, {
 						style = "editor_mode_selection_table"
@@ -290,19 +313,19 @@ function TerminalGui.BindInterfaces()
 				:AppendChildrens(
 					Gui:CreateLabel(function(player)
 						local network = Gridorius.state:get_player(player.index, "network")
-						return {"gui.items-network-terminal-network-value", network.id}
+						return { "gui.items-network-terminal-network-value", network.id }
 					end),
 					Gui:CreateLabel(function(player)
 						local network = Gridorius.state:get_player(player.index, "network")
-						return {"gui.items-network-full-processing-ticks", network.storage.distribute_index}
+						return { "gui.items-network-full-processing-ticks", network.storage.distribute_index }
 					end),
-					Gui:CreateLabel({"gui.items-network-network-entities"}),
+					Gui:CreateLabel({ "gui.items-network-network-entities" }),
 					Gui:CreateTable("machines_table", 5)
 					:SetClasses("spacing_5")
 					:AfterCreate(function(table, player)
 						TerminalGui.render_machines(player, table)
 					end),
-					Gui:CreateLabel({"gui.items-network-use-fuel"}),
+					Gui:CreateLabel({ "gui.items-network-use-fuel" }),
 					Gui:CreateTable("fuel_table", 5)
 					:SetClasses("spacing_5")
 					:AfterCreate(function(table, player)
@@ -313,7 +336,7 @@ function TerminalGui.BindInterfaces()
 		)
 
 	local pipe_interface =
-		Gui:CreateDefaultFrame("fluid_output_frame", {"gui.items-network-fluid-output-window-title"})
+		Gui:CreateDefaultFrame("fluid_output_frame", { "gui.items-network-fluid-output-window-title" })
 		:AppendChildrens(
 			Gui:CreateTable("fluids_table", 10)
 			:SetClasses("spacing_5")
@@ -345,6 +368,22 @@ function TerminalGui.BindInterfaces()
 		end
 		return nil
 	end, true)
+
+	Gui:OnNthTick(60, function()
+		for _, player in pairs(game.connected_players) do
+			local network = Gridorius.state:get_player(player.index, "network")
+			if network and player.gui.screen.terminal_frame then
+				local data_table = player.gui.screen.terminal_frame.content.left.items_scroll.items_table
+				local machines_table = player.gui.screen.terminal_frame.content.right.machines_table
+				if data_table and data_table.valid then
+					TerminalGui.render_group_data(player, data_table)
+				end
+				if machines_table and machines_table.valid then
+					TerminalGui.render_machines(player, machines_table)
+				end
+			end
+		end
+	end)
 end
 
 return TerminalGui

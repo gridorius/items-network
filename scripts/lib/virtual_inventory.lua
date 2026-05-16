@@ -98,6 +98,16 @@ end
 
 function VirtualInventory:BuildSignals()
     local signals = {}
+    for name, amount in pairs(self:GetTotalFluids()) do
+        table.insert(signals, {
+            value = {
+                type = "fluid",
+                name = name,
+            },
+            max = amount,
+        })
+    end
+
     for _, item in pairs(self:GetItems()) do
         table.insert(signals, {
             value = {
@@ -108,16 +118,7 @@ function VirtualInventory:BuildSignals()
             min = item.count,
         })
     end
-    for _, fluid in pairs(self:GetFluids()) do
-        table.insert(signals, {
-            value = {
-                type = "fluid",
-                name = fluid.name,
-                temperature = fluid.temperature,
-            },
-            min = fluid.amount,
-        })
-    end
+
     return signals
 end
 
@@ -172,6 +173,17 @@ function VirtualInventory:GetFluids()
                 temperature = temperature,
                 amount = amount
             })
+        end
+    end
+    return fluids
+end
+
+function VirtualInventory:GetTotalFluids()
+    local fluids = {}
+    for name, temperatures in pairs(self.fluids) do
+        for temperature, amount in pairs(temperatures) do
+            fluids[name] = fluids[name] or 0
+            fluids[name] = fluids[name] + amount
         end
     end
     return fluids

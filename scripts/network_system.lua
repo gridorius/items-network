@@ -25,9 +25,9 @@ function NetworkSystem:new()
     for _, surface in pairs(game.surfaces) do
         self:RebuildAllNetworks(surface.index)
     end
-    script.on_event("on_tick", function(event) self:HandleTick(event) end)
-    script.on_event(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
-    script.on_event(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
+    Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
+    Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
+    Gridorius.Events:On(defines.events.on_tick, function(event) self:HandleTick(event) end)
     return self
 end
 

@@ -3,14 +3,11 @@ local NetworkSystem = require("scripts.network_system")
 local TerminalGui = require("scripts.terminal_gui")
 
 
-script.on_nth_tick(10, function()
+Gridorius.Events:OnNthTick(10, function(event, handler_id)
     if game then
         local network_system = NetworkSystem:new()
         Gridorius.state:set("network_system", network_system)
         TerminalGui.BindInterfaces()
-        script.on_nth_tick(10, nil)
+        Gridorius.Events:RemoveNthTickEvent(10, handler_id)
     end
 end)
-
-
--- end)

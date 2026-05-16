@@ -21,11 +21,12 @@ function Gui:new()
     self.click_tags_handlers = {}
     self.interface_bindings = {}
     self.delay_queue = {}
+    self.nth_tick_handlers = {}
 
-    script.on_event(defines.events.on_gui_click, function(event) self:on_gui_click_handler(event) end)
-    script.on_event(defines.events.on_gui_opened, function(event) self:on_gui_opened_handler(event) end)
-    script.on_event(defines.events.on_gui_closed, function(event) self:on_gui_closed_handler(event) end)
-    script.on_event(defines.events.on_tick, function(event) self:on_tick_handler(event) end)
+    Gridorius.Events:On(defines.events.on_gui_click, function(event) self:on_gui_click_handler(event) end)
+    Gridorius.Events:On(defines.events.on_gui_opened, function(event) self:on_gui_opened_handler(event) end)
+    Gridorius.Events:On(defines.events.on_gui_closed, function(event) self:on_gui_closed_handler(event) end)
+    Gridorius.Events:On(defines.events.on_tick, function(event) self:on_tick_handler(event) end)
     return self
 end
 
@@ -66,6 +67,11 @@ function Gui:on_tick_handler(event)
             queue[event.tick] = nil
         end
     end
+    for _, handler_data in pairs(self.nth_tick_handlers) do
+        if event.tick % handler_data.tick == 0 then
+            handler_data.handler(event)
+        end
+    end
 end
 
 function Gui:on_gui_opened_handler(event)
@@ -92,12 +98,18 @@ function Gui:on_gui_closed_handler(event)
     return self
 end
 
-function Gui:on_tagged_click(handler)
+-- #endregion
+
+function Gui:OnTaggedClick(handler)
     table.insert(self.click_tags_handlers, handler)
     return self
 end
 
--- #endregion
+function Gui:OnNthTick(tick, handler)
+    table.insert(self.nth_tick_handlers, { tick = tick, handler = handler })
+    return self
+end
+
 --#region Gui operations
 
 function Gui:RenderInterface(player, binding, entity)
@@ -216,7 +228,8 @@ end
 
 function Gui:CreateButton(name, caption, properties)
     return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
-        return parent.add(Gridorius.MergeProperties({ type = "button", name = name, caption = Gui:GetValue(caption, player) }, properties))
+        return parent.add(Gridorius.MergeProperties(
+        { type = "button", name = name, caption = Gui:GetValue(caption, player) }, properties))
     end)
 end
 
@@ -236,13 +249,15 @@ end
 
 function Gui:CreateSpriteButton(name, sprite, properties)
     return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
-        return parent.add(Gridorius.MergeProperties({ type = "sprite-button", name = name, sprite = Gui:GetValue(sprite, player) }, properties))
+        return parent.add(Gridorius.MergeProperties(
+        { type = "sprite-button", name = name, sprite = Gui:GetValue(sprite, player) }, properties))
     end)
 end
 
 function Gui:CreateLabel(caption, properties)
     return Gridorius.InterfaceBuilder:new(self, nil, function(parent, player)
-        return parent.add(Gridorius.MergeProperties({ type = "label", caption = Gui:GetValue(caption, player) }, properties))
+        return parent.add(Gridorius.MergeProperties({ type = "label", caption = Gui:GetValue(caption, player) },
+            properties))
     end)
 end
 
