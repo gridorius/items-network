@@ -25,10 +25,12 @@ function Network:InitStorage(network_id)
     if not storage.networks[network_id] then
         storage.networks[network_id] = {
             entities = {},
+            typed_entities = {},
             use_fuels = {},
             server = nil,
         }
     else
+        storage.networks[network_id].typed_entities = storage.networks[network_id].typed_entities or {}
         storage.networks[network_id].server = storage.networks[network_id].server or nil
         storage.networks[network_id].entities = storage.networks[network_id].entities or {}
         storage.networks[network_id].use_fuels = storage.networks[network_id].use_fuels or {}
@@ -61,23 +63,23 @@ end
 
 function Network:GetTypeEntities(type, distribute_index)
     local result = {}
-    for unit_number, entity_data in pairs(self.entities) do
-        if entity_data.type == type then
-            if distribute_index == nil or entity_data.distribute_index == distribute_index then
-                result[unit_number] = entity_data.entity
-            end
+    for unit_number, entity_data in pairs(self.storage.typed_entities[type] or {}) do
+        if distribute_index == nil or entity_data.distribute_index == distribute_index then
+            result[unit_number] = entity_data.entity
         end
     end
     return result
 end
 
 function Network:GetTypeEntitiesData(type, distribute_index)
+    if not distribute_index then
+        return self.storage.typed_entities[type] or {}
+    end
+
     local result = {}
-    for unit_number, entity_data in pairs(self.entities) do
-        if entity_data.type == type then
-            if distribute_index == nil or entity_data.distribute_index == distribute_index then
-                result[unit_number] = entity_data
-            end
+    for unit_number, entity_data in pairs(self.storage.typed_entities[type] or {}) do
+        if distribute_index == nil or entity_data.distribute_index == distribute_index then
+            result[unit_number] = entity_data
         end
     end
     return result
@@ -93,6 +95,7 @@ end
 
 function Network:ResetEntities()
     self.storage.entities = {}
+    self.storage.typed_entities = {}
     self.storage.distribute_index = 1
     self.storage.distribute_current = settings.global.network_machines_per_tick.value
     self.entities = self.storage.entities
@@ -137,16 +140,25 @@ function Network:AttachEntity(entity)
         return
     end
 
+    local type = self:ResolveEntityType(entity)
+
+    if not type then
+        return
+    end
+
+    self.storage.typed_entities[type] = self.storage.typed_entities[type] or {}
+
     if storage.network_entities[entity.unit_number] then
         self.entities[entity.unit_number] = storage.network_entities[entity.unit_number]
     else
         self.entities[entity.unit_number] = {
             entity = entity,
-            type = self:ResolveEntityType(entity)
+            type = type
         }
         storage.network_entities[entity.unit_number] = self.entities[entity.unit_number]
     end
 
+    self.storage.typed_entities[type][entity.unit_number] = self.entities[entity.unit_number]
     if self.entities[entity.unit_number].type == Constants.TYPE.MACHINE then
         self.entities[entity.unit_number].distribute_index = self:GetDistributeIndex()
     end
@@ -163,7 +175,7 @@ function Network:OnTick()
 
         local servers = self:GetTypeEntities(Constants.TYPE.SERVER)
         for _, server in pairs(servers) do
-            if(server and server.valid) then
+            if (server and server.valid) then
                 server.minable = self.inventory:IsEmpty()
             else
                 self:Destroy()
