@@ -28,6 +28,13 @@ function NetworkSystem:new()
     Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
     Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
     Gridorius.Events:On(defines.events.on_tick, function(event) self:HandleTick(event) end)
+    Gridorius.Events:On(defines.events.on_runtime_mod_setting_changed, function(event)
+        if event.setting == "network_machines_per_tick" then
+            for _, surface in pairs(game.surfaces) do
+                self:RebuildAllNetworks(surface.index)
+            end
+        end
+    end)
     return self
 end
 
@@ -108,9 +115,11 @@ end
 function NetworkSystem:RemoveConnectors(entity)
     if storage.connectors and storage.connectors[entity.unit_number] then
         for _, connector in pairs(storage.connectors[entity.unit_number]) do
-            storage.connector_entity[connector.unit_number] = nil
             if connector and connector.valid then
-                connector.destroy()
+                storage.connector_entity[connector.unit_number] = nil
+                if connector and connector.valid then
+                    connector.destroy()
+                end
             end
         end
         storage.connectors[entity.unit_number] = nil

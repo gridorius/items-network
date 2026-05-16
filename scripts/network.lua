@@ -159,20 +159,16 @@ function Network:AttachEntity(entity)
     end
 
     self.storage.typed_entities[type][entity.unit_number] = self.entities[entity.unit_number]
-    if self.entities[entity.unit_number].type == Constants.TYPE.MACHINE then
+
+    if Constants.DISTRIBUTABLE_TYPES[self.entities[entity.unit_number].type] then
         self.entities[entity.unit_number].distribute_index = self:GetDistributeIndex()
     end
 end
 
 function Network:OnTick()
     if Gridorius.nth_tick(60) then
-        self:CollectChests()
         self:UpdateSignals()
         self:SetTerminalsSignals()
-        self:FillFluidOutputs()
-        self:CollectFluidInputs()
-        self:ProcessBufferChests()
-
         local servers = self:GetTypeEntities(Constants.TYPE.SERVER)
         for _, server in pairs(servers) do
             if (server and server.valid) then
@@ -185,10 +181,14 @@ function Network:OnTick()
     end
 
     local distribute_index = game.tick % (self.storage.distribute_index + 1)
-    self:DistributeInventory(distribute_index)
+    self:CollectChests(distribute_index)
+    self:CollectFluidInputs(distribute_index)
+    self:FillFluidOutputs(distribute_index)
+    self:ProcessMachines(distribute_index)
+    self:ProcessBufferChests(distribute_index)
 end
 
-function Network:DistributeInventory(distribute_index)
+function Network:ProcessMachines(distribute_index)
     local machines = self:GetTypeEntities(Constants.TYPE.MACHINE, distribute_index)
 
     for _, machine in pairs(machines) do
@@ -196,8 +196,8 @@ function Network:DistributeInventory(distribute_index)
     end
 end
 
-function Network:CollectChests()
-    local chests = self:GetTypeEntities(Constants.TYPE.CHEST)
+function Network:CollectChests(distribute_index)
+    local chests = self:GetTypeEntities(Constants.TYPE.CHEST, distribute_index)
     for _, chest in pairs(chests) do
         if chest and chest.valid then
             self.inventory:CollectInventory(chest.get_inventory(defines.inventory.chest))
@@ -205,21 +205,21 @@ function Network:CollectChests()
     end
 end
 
-function Network:FillFluidOutputs()
-    local output_pipes_data = self:GetTypeEntitiesData(Constants.TYPE.FLUID_OUTPUT)
+function Network:FillFluidOutputs(distribute_index)
+    local output_pipes_data = self:GetTypeEntitiesData(Constants.TYPE.FLUID_OUTPUT, distribute_index)
     for _, pipe_data in pairs(output_pipes_data) do
-        local pipe = pipe_data.entity
-        if pipe_data.fluid and pipe_data.temperature then
+        if pipe_data.entity and pipe_data.entity.valid and pipe_data.fluid and pipe_data.temperature then
+            local pipe = pipe_data.entity
             local inventory_amount = self.inventory:GetFluidAmount(pipe_data.fluid, pipe_data.temperature)
-            local fluidbox_wrapper = Gridorius.Fluidbox:new(pipe)
 
             local need_collect = false
-            for name, temperatures in pairs(fluidbox_wrapper:GetFluids()) do
-                for temp, amount in pairs(temperatures) do
-                    if name ~= pipe_data.fluid or temp ~= pipe_data.temperature then
-                        need_collect = true
-                        break
-                    end
+            for i = 1, #pipe.fluidbox do
+                local fluid = pipe.fluidbox[i]
+                local needed_temperature = pipe_data.temperature == "default" and
+                    self.inventory.fluids[pipe_data.fluid].default_temperature or pipe_data.temperature
+                if fluid and fluid.name and (fluid.name ~= pipe_data.fluid or fluid.temperature ~= needed_temperature) then
+                    need_collect = true
+                    break
                 end
             end
 
@@ -227,14 +227,19 @@ function Network:FillFluidOutputs()
                 self.inventory:CollectFluidbox(pipe)
             end
 
-            local filled_amount = fluidbox_wrapper:Insert(pipe_data.fluid, pipe_data.temperature, inventory_amount)
-            self.inventory:RemoveFluid(pipe_data.fluid, filled_amount, pipe_data.temperature)
+            local temperature = pipe_data.temperature == "default" and
+                        self.inventory.fluids[pipe_data.fluid].default_temperature or pipe_data.temperature
+
+            local inserted = Gridorius.insert_fluid(pipe.fluidbox, {name = pipe_data.fluid, amount = inventory_amount, temperature = temperature}, 1, inventory_amount)
+            if inserted > 0 then
+                self.inventory:RemoveFluid(pipe_data.fluid, inserted, pipe_data.temperature)
+            end
         end
     end
 end
 
-function Network:CollectFluidInputs()
-    local input_pipes = self:GetTypeEntities(Constants.TYPE.FLUID_INPUT)
+function Network:CollectFluidInputs(distribute_index)
+    local input_pipes = self:GetTypeEntities(Constants.TYPE.FLUID_INPUT, distribute_index)
     for _, pipe in pairs(input_pipes) do
         if pipe and pipe.valid then
             self.inventory:CollectFluidbox(pipe)
@@ -242,8 +247,8 @@ function Network:CollectFluidInputs()
     end
 end
 
-function Network:ProcessBufferChests()
-    local buffer_chests = self:GetTypeEntities(Constants.TYPE.BUFFER_CHEST)
+function Network:ProcessBufferChests(distribute_index)
+    local buffer_chests = self:GetTypeEntities(Constants.TYPE.BUFFER_CHEST, distribute_index)
     for _, chest in pairs(buffer_chests) do
         if chest and chest.valid then
             self.inventory:ProcessBufferChest(chest)

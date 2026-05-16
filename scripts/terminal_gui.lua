@@ -115,20 +115,23 @@ function TerminalGui.render_fluids(network, fluids, player, table)
 	for fluid_name, fluid in pairs(fluids) do
 		if network.inventory.fluids[fluid_name] then
 			for temperature, amount in pairs(network.inventory.fluids[fluid_name]) do
-				Gui:CreateSpriteButton(fluid_name .. ":" .. temperature, "fluid/" .. fluid_name, {
-					tags = {
-						type = 'fluid',
-						item_name = fluid_name,
-						temperature = temperature,
-					},
-					number = amount,
-					caption = "[color=white]" .. temperature .. "°C[/color]",
-					tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" },
-					style = "slot_button",
-				})
-					:AfterCreate(function(element)
-						element.style.size = 40
-					end):RenderElement(player, table)
+				if temperature ~= "default_temperature" then
+					local caption = temperature == "default" and "" or "[color=white]" .. temperature .. "°C[/color]"
+					Gui:CreateSpriteButton(fluid_name .. ":" .. temperature, "fluid/" .. fluid_name, {
+						tags = {
+							type = 'fluid',
+							item_name = fluid_name,
+							temperature = temperature,
+						},
+						number = amount,
+						caption = caption,
+						tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" },
+						style = "slot_button",
+					})
+						:AfterCreate(function(element)
+							element.style.size = 40
+						end):RenderElement(player, table)
+				end
 			end
 		end
 	end
@@ -160,7 +163,8 @@ function TerminalGui.render_group_data(player, data_table)
 
 	local row_index = 0
 	if not tiers then
-		row_index = TerminalGui.render_quality_pack(current_network, player, current_group_items, "normal", data_table, row_index)
+		row_index = TerminalGui.render_quality_pack(current_network, player, current_group_items, "normal", data_table,
+			row_index)
 		return
 	end
 	for quality, _ in pairs(tiers) do
@@ -212,21 +216,32 @@ function TerminalGui.render_fluid_selector(network, player, table)
 
 	for fluid_name, temperatures in pairs(network.inventory.fluids) do
 		for temperature, _ in pairs(temperatures) do
-			Gui:CreateSpriteButton(fluid_name .. ":" .. temperature, "fluid/" .. fluid_name, {
-				tags = {
-					type = 'select_pipe_fluid',
-					fluid = fluid_name,
-					temperature = temperature,
-				},
-				number = temperature,
-				tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" },
-				toggle_mode = true,
-			}):AfterCreate(function(element)
-				element.style.size = 40
-				if pipe_data.fluid_name == fluid_name and pipe_data.temperature == temperature then
-					element.toggled = true
+			if temperature ~= "default_temperature" then
+				local name = fluid_name
+				local is_default = temperature == "default"
+				local tooltip = { "fluid-name." .. fluid_name }
+				if not is_default then
+					tooltip = { "", tooltip, temperature .. "°C" }
+					name = name .. ":" .. temperature
 				end
-			end):RenderElement(player, table)
+				Gui:CreateSpriteButton(name, "fluid/" .. fluid_name, {
+					tags = {
+						type = 'select_pipe_fluid',
+						fluid = fluid_name,
+						temperature = temperature,
+					},
+					tooltip = tooltip,
+					toggle_mode = true,
+				}):AfterCreate(function(element)
+					if not is_default then
+						element.number = temperature
+					end
+					element.style.size = 40
+					if pipe_data.fluid_name == fluid_name and pipe_data.temperature == temperature then
+						element.toggled = true
+					end
+				end):RenderElement(player, table)
+			end
 		end
 	end
 end

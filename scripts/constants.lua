@@ -45,6 +45,14 @@ local Constants = {
     }
 }
 
+Constants.DISTRIBUTABLE_TYPES = {
+    [Constants.TYPE.MACHINE] = true,
+    [Constants.TYPE.CHEST] = true,
+    [Constants.TYPE.FLUID_INPUT] = true,
+    [Constants.TYPE.FLUID_OUTPUT] = true,
+    [Constants.TYPE.BUFFER_CHEST] = true,
+}
+
 Constants.ENTITY_TYPES_MAP = {
     [Constants.SERVER_NAME] = Constants.TYPE.SERVER,
     [Constants.TERMINAL_NAME] = Constants.TYPE.TERMINAL,
