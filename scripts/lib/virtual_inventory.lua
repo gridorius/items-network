@@ -370,10 +370,10 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
         end
 
         -- handle fuels
-        if machine.active and burner and fuel_inventory and not fuel_inventory.is_full() and burner.remaining_burning_fuel < 100 then
+        if machine.active and burner and fuel_inventory and fuel_inventory.is_empty() and burner.remaining_burning_fuel < 100 then
             for fuel_name, use in pairs(use_fuels) do
                 if use then
-                    self:MoveToInventory({ name = fuel_name }, 1, fuel_inventory)
+                    self:MoveToInventory({ name = fuel_name }, 2, fuel_inventory)
                 end
             end
         end
