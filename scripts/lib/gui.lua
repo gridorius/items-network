@@ -26,7 +26,7 @@ function Gui:new()
     Gridorius.Events:On(defines.events.on_gui_click, function(event) self:on_gui_click_handler(event) end)
     Gridorius.Events:On(defines.events.on_gui_opened, function(event) self:on_gui_opened_handler(event) end)
     Gridorius.Events:On(defines.events.on_gui_closed, function(event) self:on_gui_closed_handler(event) end)
-    Gridorius.Events:On(defines.events.on_tick, function(event) self:on_tick_handler(event) end)
+    Gridorius.Events:OnNthTick(1, function(event) self:on_tick_handler(event) end)
     return self
 end
 
