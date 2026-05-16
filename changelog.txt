@@ -2,9 +2,11 @@ Version: 1.1.0
 Date: 2026-05-17
   Changes:
     - Added the Player supply technology that lets network servers fulfill player logistic requests.
+    - Updated localization and README text for the Player supply technology.
     - Updated locale and icons for the new version.
     - Limited machine input insertion to enough ingredients for 2 recipe runs.
   Bugfixes:
+    - Aligned the Network cable item subgroup with its recipe category so both appear in the same crafting group.
     - Removed support for mining drills.
 Version: 0.1.0
 Date: 2026-05-11

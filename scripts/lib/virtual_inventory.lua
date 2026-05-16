@@ -412,8 +412,10 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
 end
 
 function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
+    if trash and trash.valid then
+        self:CollectInventory(trash)
+    end
     local point = entity.get_requester_point()
-
     if not point then
         return
     end
@@ -424,7 +426,6 @@ function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
         return
     end
 
-    self:CollectInventory(trash)
     if inventory:IsFull() or not filters then
         return
     end
