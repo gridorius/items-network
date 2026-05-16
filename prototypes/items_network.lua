@@ -36,10 +36,9 @@ local network_server_entity = {
     show_recipe_icon_on_map = false,
     energy_usage = "20kW",
     energy_source = {
-        type = "electric",
+        type = "void",
         usage_priority = "secondary-input"
     },
-
 
     graphics_set = {
       animation = {
@@ -201,6 +200,14 @@ local network_buffer_chest_entity = table.deepcopy(data.raw["logistic-container"
 network_terminal_entity.name = "network-terminal"
 network_terminal_entity.localised_name = {"entity-name.network-terminal"}
 network_terminal_entity.localised_description = {"entity-description.network-terminal"}
+network_terminal_entity.icon = "__items-network__/graphics/entity/terminal/terminal.png"
+network_terminal_entity.icon_size = 500
+network_terminal_entity.sprites = {
+  filename = "__items-network__/graphics/entity/terminal/terminal.png",
+  width = 500,
+  height = 500,
+  scale = 0.06,
+}
 network_terminal_entity.minable = { mining_time = 0.1, result = "network-terminal" }
 
 network_buffer_chest_entity.name = "network-buffer-chest"

@@ -16,6 +16,11 @@ function Network:new(network_id)
     return self
 end
 
+function Network:Destroy()
+    storage.networks[self.id] = nil
+    self.inventory:Destroy()
+end
+
 function Network:InitStorage(network_id)
     if not storage.networks[network_id] then
         storage.networks[network_id] = {
@@ -157,9 +162,12 @@ function Network:OnTick()
         self:ProcessBufferChests()
 
         local servers = self:GetTypeEntities(Constants.TYPE.SERVER)
-        if servers and next(servers) then
-            for _, server in pairs(servers) do
+        for _, server in pairs(servers) do
+            if(server and server.valid) then
                 server.minable = self.inventory:IsEmpty()
+            else
+                self:Destroy()
+                self:ResetEntities()
             end
         end
     end

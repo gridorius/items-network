@@ -35,13 +35,15 @@ end
 
 function Inventory:GetItemCount(name, quality)
     self:Update()
+    quality = quality or "normal"
     if self.items[name] and self.items[name][quality] then
         return self.items[name][quality]
     end
     return 0
 end
 
-function Inventory:Insert(name, quality, count)
+function Inventory:Insert(name, count, quality)
+    quality = quality or "normal"
     if self.inventory and self.inventory.valid then
         local stack = {name = name, count = count, quality = quality}
         return self.inventory.insert(stack)

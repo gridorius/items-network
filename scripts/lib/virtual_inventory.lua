@@ -217,8 +217,30 @@ function VirtualInventory:RemoveFluid(name, amount, temperature)
     return 0
 end
 
+function VirtualInventory:GetMaxItemQuality(name)
+    local qualities = self.items[name]
+    if not qualities then
+        return nil
+    end
+    local quality_order = prototypes.quality.order or {}
+
+    local max_quality = "normal"
+    for quality, amount in pairs(qualities) do
+        if amount > 0 then
+            if quality_order[quality] and quality_order[max_quality] then
+                if quality_order[quality] > quality_order[max_quality] then
+                    max_quality = quality
+                end
+            elseif quality_order[quality] and not quality_order[max_quality] then
+                max_quality = quality
+            end
+        end
+    end
+    return max_quality
+end
+
 function VirtualInventory:MoveToInventory(item, count, inventory)
-    local inventory_count = self:GetItemCount(item.name, item.quality or "normal")
+    local inventory_count = self:GetItemCount(item.name, item.quality)
     if inventory_count > 0 then
         local move_amount = math.min(inventory_count, count)
         local inserted = inventory.insert({
@@ -234,8 +256,38 @@ function VirtualInventory:MoveToInventory(item, count, inventory)
     return 0
 end
 
+function VirtualInventory:ProcessLab(lab)
+    if not (lab and lab.valid) then
+        return
+    end
+
+    local input_inventory = lab.get_inventory(defines.inventory.lab_input)
+
+    if not (input_inventory and input_inventory.valid) then
+        return
+    end
+
+    for _, science_pack_name in ipairs(lab.prototype.lab_inputs) do
+        if science_pack_name then
+            local in_lab_count = input_inventory.get_item_count(science_pack_name)
+            local needed = 2 - in_lab_count
+            if needed > 0 then
+                local moved = self:MoveToInventory({ name = science_pack_name }, needed, input_inventory)
+                if moved < needed then
+                    break
+                end
+            end
+        end
+    end
+end
+
 function VirtualInventory:ProcessMachine(machine, use_fuels)
     if machine and machine.valid then
+        if machine.type == "lab" then
+            self:ProcessLab(machine)
+            return
+        end
+
         local input_inventory = machine.get_inventory(defines.inventory.crafter_input)
         local output_inventory = machine.get_inventory(defines.inventory.crafter_output)
         local fuel_inventory = machine.get_inventory(defines.inventory.fuel)
@@ -256,7 +308,7 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
                     local max_move = math.ceil(prototypes.item[ingredient.name].stack_size / 5)
                     self:MoveToInventory({ name = ingredient_name, quality = ingredient_quality }, max_move,
                         input_inventory)
-                elseif ingredient.type == "fluid" and fluidbox and not fluidbox.is_full() then
+                elseif ingredient.type == "fluid" and fluidbox then
                     local fluid_name = ingredient.name
                     local fluid_temperature = ingredient.temperature
                     local inventory_amount = self:GetFluidAmount(fluid_name, fluid_temperature)

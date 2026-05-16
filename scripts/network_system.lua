@@ -225,6 +225,9 @@ function NetworkSystem:DestroyInvalidConnections(network)
     if servers:Count() > 1 then
         servers:ForEach(function(server)
             local server_connectors = storage.connectors and storage.connectors[server.unit_number]
+            if not server_connectors then
+                return
+            end
             for _, connector in pairs(server_connectors) do
                 if connector and connector.valid then
                     for _, neighbor in pairs(connector.heat_neighbours) do
@@ -293,13 +296,22 @@ function NetworkSystem:HandleBuildEntity(event)
     if entity.name == Constants.SERVER_NAME then
         local network = self:SearchNetworkByConnectors(entity)
         if network then
-            entity.surface.spill_item_stack {
-                position = entity.position,
-                stack = { name = entity.name, count = 1 }
-            }
+            local inserted = 0
+            local player = event.player_index and game.get_player(event.player_index)
+            if player and player.valid then
+                inserted = player.insert { name = entity.name, count = 1 }
+            end
+
+            if inserted == 0 then
+                entity.surface.spill_item_stack {
+                    position = entity.position,
+                    stack = { name = entity.name, count = 1 }
+                }
+            end
+
             self:RemoveConnectors(entity)
             entity.destroy()
-            game.print({"message.items-network-server-already-connected"})
+            game.print({ "message.items-network-server-already-connected" })
             return
         end
 
@@ -309,7 +321,7 @@ function NetworkSystem:HandleBuildEntity(event)
         }
 
         local new_network_id = self:BuildNetwork(entity)
-        game.print({"message.items-network-built-network", new_network_id})
+        game.print({ "message.items-network-built-network", new_network_id })
         return
     end
 
