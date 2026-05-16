@@ -11,7 +11,6 @@ local Constants = {
         ["assembling-machine"] = true,
         ["furnace"] = true,
         ["lab"] = true,
-        ["mining-drill"] = true,
         ["rocket-silo"] = true,
     },
     ABSORBABLE_CHEST_TYPES = {

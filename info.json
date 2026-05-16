@@ -1,6 +1,6 @@
 {
   "name": "items-network",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "title": "Items Network [BETA]",
   "description": "A cable-based item and fluid logistics network with terminals, quality-aware item storage, machine IO, and network buffer chests.",
   "author": "Gridorius",

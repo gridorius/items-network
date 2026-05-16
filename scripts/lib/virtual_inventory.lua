@@ -339,19 +339,21 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
                     end
                     local ingredient_name = ingredient.name
                     local max_move = math.ceil(prototypes.item[ingredient.name].stack_size *
-                    self.insert_item_stack_per_operation)
+                        self.insert_item_stack_per_operation)
+                    local current_count = input_inventory.get_item_count(ingredient_name)
+                    if current_count >= ingredient.amount * 2 then
+                        goto next_ingriedient
+                    end
                     self:MoveToInventory({ name = ingredient_name, quality = ingredient_quality }, max_move,
                         input_inventory)
                 elseif ingredient.type == "fluid" and fluidbox then
                     local fluid_name = ingredient.name
                     local fluid_temperature = ingredient.temperature
                     local inventory_amount = self:GetFluidAmount(fluid_name, fluid_temperature)
-                    if inventory_amount > 0 then
-                        fluids_to_insert[fluid_name] = {
-                            temperature = fluid_temperature,
-                            amount = math.min(inventory_amount, self.insert_fluid_per_operation)
-                        }
-                    end
+                    fluids_to_insert[fluid_name] = {
+                        temperature = fluid_temperature,
+                        amount = math.min(inventory_amount, self.insert_fluid_per_operation)
+                    }
                 end
                 ::next_ingriedient::
             end

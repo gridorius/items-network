@@ -1,7 +1,5 @@
 # Items Network
 
-Russian version: [README.ru.md](README.ru.md)
-
 Items Network adds a cable-based virtual logistics system for items and fluids to Factorio 2.0, with item Quality support.
 
 > Warning: this mod is currently in beta. Functionality, balance, and interfaces may change.
