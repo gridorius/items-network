@@ -93,11 +93,12 @@ function NetworkSystem:GetConnectorPositions(entity)
 end
 
 function NetworkSystem:CreatePowerPole(entity)
-    return entity.surface.create_entity {
+    local pole = entity.surface.create_entity {
         name = Constants.HIDDEN_POWER_POLE_NAME,
         position = { x = entity.position.x, y = entity.position.y },
         force = entity.force
     }
+    storage.power_poles[entity.unit_number] = pole
 end
 
 function NetworkSystem:IsPowerConductivityUnlocked(force)
