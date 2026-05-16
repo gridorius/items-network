@@ -411,13 +411,20 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
     end
 end
 
-function VirtualInventory:ProcessBufferChest(chest)
-    local point = chest.get_requester_point()
-    local filters = point.filters
-    local inventory = Gridorius.Inventory:new(chest.get_inventory(defines.inventory.chest))
-    local trash = chest.get_inventory(defines.inventory.logistic_container_trash)
-    self:CollectInventory(trash)
+function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
+    local point = entity.get_requester_point()
 
+    if not point then
+        return
+    end
+
+    local filters = point.filters
+
+    if not filters then
+        return
+    end
+
+    self:CollectInventory(trash)
     if inventory:IsFull() or not filters then
         return
     end
@@ -438,6 +445,18 @@ function VirtualInventory:ProcessBufferChest(chest)
             end
         end
     end
+end
+
+function VirtualInventory:ProcessBufferChest(chest)
+    local inventory = Gridorius.Inventory:new(chest.get_inventory(defines.inventory.chest))
+    local trash = chest.get_inventory(defines.inventory.logistic_container_trash)
+    self:ProcessLogisticInventory(chest, inventory, trash)
+end
+
+function VirtualInventory:ProcessPlayer(player)
+    local inventory = Gridorius.Inventory:new(player.get_main_inventory())
+    local trash = player.get_inventory(defines.inventory.character_trash)
+    self:ProcessLogisticInventory(player, inventory, trash)
 end
 
 return VirtualInventory

@@ -1,6 +1,7 @@
-Version: 1.0.2
-Date: 2026-05-16
+Version: 1.1.0
+Date: 2026-05-17
   Changes:
+    - Added the Player supply technology that lets network servers fulfill player logistic requests.
     - Updated locale and icons for the new version.
     - Limited machine input insertion to enough ingredients for 2 recipe runs.
   Bugfixes:

@@ -16,12 +16,14 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 - `Network terminal` with a custom GUI for browsing and withdrawing items
 - Circuit network output from terminals for reading current network contents
 - `Network buffer chest`, which requests items from virtual storage and returns trash slots back into the network
+- `Player supply`, which lets network servers fulfill player logistic requests and return character trash slots back into the network on the same surface
 - Automatic machine input feeding from network storage
 - Full Quality support in storage, requests, GUI, and machine supply
 - More even distribution of items across machines to reduce idle time and input overfill
 
 ## Entities
 
+- Network server
 - Network cable
 - Network terminal
 - Network fluid intake pipe
@@ -38,6 +40,7 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 6. Insert a `Network fluid output pipe` into the cable line, choose the required fluid in its interface, and output it into connected pipes.
 7. Connect production machines so the network can refill their inputs automatically.
 8. Use a `Network buffer chest` to request exact items from virtual storage.
+9. Research `Player supply` to let servers fulfill personal logistic requests for players on the same surface.
 
 ## Quality Support
 
@@ -45,7 +48,9 @@ Items inside the network are tracked together with their quality level. The term
 
 ## Research and Recipes
 
-The mod unlocks its devices through the `Item network` technology. After research, you can craft the full set of network entities from the logistics category.
+The mod unlocks its core devices through the `Item network` technology. After research, you can craft the full set of network entities from the logistics category.
+
+Later, the `Player supply` technology enables network servers to fulfill personal logistic requests and pull character trash slots back into the network for players on the same surface.
 
 ## Notes
 

@@ -165,6 +165,19 @@ function Network:AttachEntity(entity)
     end
 end
 
+function Network:ProcessPlayers(server)
+    if not game.forces.player.technologies['network-player-supply'].researched then
+        return
+    end
+
+    for i = 1, #game.players do
+        local player = game.players[i]
+        if player and player.valid and player.surface.index == server.surface.index then
+            self.inventory:ProcessPlayer(player)
+        end
+    end
+end
+
 function Network:OnTick()
     if Gridorius.nth_tick(60) then
         self:UpdateSignals()
@@ -173,6 +186,7 @@ function Network:OnTick()
         for _, server in pairs(servers) do
             if (server and server.valid) then
                 server.minable = self.inventory:IsEmpty()
+                self:ProcessPlayers(server)
             else
                 self:Destroy()
                 self:ResetEntities()
@@ -228,9 +242,10 @@ function Network:FillFluidOutputs(distribute_index)
             end
 
             local temperature = pipe_data.temperature == "default" and
-                        self.inventory.fluids[pipe_data.fluid].default_temperature or pipe_data.temperature
+                self.inventory.fluids[pipe_data.fluid].default_temperature or pipe_data.temperature
 
-            local inserted = Gridorius.insert_fluid(pipe.fluidbox, {name = pipe_data.fluid, amount = inventory_amount, temperature = temperature}, 1, inventory_amount)
+            local inserted = Gridorius.insert_fluid(pipe.fluidbox,
+                { name = pipe_data.fluid, amount = inventory_amount, temperature = temperature }, 1, inventory_amount)
             if inserted > 0 then
                 self.inventory:RemoveFluid(pipe_data.fluid, inserted, pipe_data.temperature)
             end
