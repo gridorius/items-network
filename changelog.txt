@@ -1,3 +1,8 @@
+Version: 1.2.0
+Date: 2026-05-17
+  Changes:
+    - Added inventory expansion to the Player supply technology: it now grants 30 character inventory slots and 20 logistic trash slots.
+
 Version: 1.1.0
 Date: 2026-05-17
   Changes:

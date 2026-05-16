@@ -493,7 +493,10 @@ data:extend({
       },
       time = 15,
     },
-    effects = {},
+      effects = {
+        { type = "character-inventory-slots-bonus", modifier = 30 },
+        { type = "character-logistic-trash-slots", modifier = 20 },
+      },
     order = "c-z[network-player-supply]",
   },
 })
