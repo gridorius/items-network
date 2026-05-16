@@ -13,6 +13,7 @@ function NetworkSystem:new()
     storage.networks = storage.networks or {}
     storage.connectors = storage.connectors or {}
     storage.connector_entity = storage.connector_entity or {}
+    storage.power_poles = storage.power_poles or {}
     storage.next_network_id = storage.next_network_id or 1
     storage.network_entities = storage.network_entities or {}
 
@@ -22,11 +23,15 @@ function NetworkSystem:new()
 
     self:InitNetworks()
     self:RebuildConnectors()
+    self:RebuildPowerPoles()
     for _, surface in pairs(game.surfaces) do
         self:RebuildAllNetworks(surface.index)
     end
     Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
     Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
+    Gridorius.Events:On(defines.events.on_research_finished, function(event)
+        self:HandleResearchFinished(event)
+    end)
     Gridorius.Events:OnNthTick(1, function(event) self:HandleTick(event) end)
     Gridorius.Events:On(defines.events.on_runtime_mod_setting_changed, function(event)
         if event.setting == "network_machines_per_tick" then
@@ -71,6 +76,39 @@ function NetworkSystem:CreateConnector(entity, x, y)
     }
 end
 
+function NetworkSystem:GetConnectorPositions(entity)
+    local h2 = entity.tile_height / 2
+    local w2 = entity.tile_width / 2
+
+    if entity.tile_height == 1 and entity.tile_width == 1 then
+        return {
+            { x = entity.position.x, y = entity.position.y }
+        }
+    end
+
+    return {
+        { x = entity.position.x - w2,       y = entity.position.y - h2 },
+        { x = entity.position.x + w2 - 0.5, y = entity.position.y + h2 - 0.5 }
+    }
+end
+
+function NetworkSystem:CreatePowerPole(entity)
+    return entity.surface.create_entity {
+        name = Constants.HIDDEN_POWER_POLE_NAME,
+        position = { x = entity.position.x, y = entity.position.y },
+        force = entity.force
+    }
+end
+
+function NetworkSystem:IsPowerConductivityUnlocked(force)
+    if not force or not force.valid then
+        return false
+    end
+
+    local technology = force.technologies[Constants.POWER_TECH_NAME]
+    return technology and technology.researched or false
+end
+
 function NetworkSystem:GetNetworkByEntity(entity)
     if not entity or not entity.valid then
         return nil
@@ -86,21 +124,17 @@ function NetworkSystem:GetNetworkByEntity(entity)
 end
 
 function NetworkSystem:CreateConnectors(entity)
-    local h2 = entity.tile_height / 2;
-    local w2 = entity.tile_width / 2;
     local connectors = {}
 
-    if entity.tile_height == 1 and entity.tile_width == 1 then
-        connectors = {
-            self:CreateConnector(entity, entity.position.x, entity.position.y)
-        }
-    else
-        local top_left = self:CreateConnector(entity, entity.position.x - w2, entity.position.y - h2)
-        local bottom_right = self:CreateConnector(entity, entity.position.x + w2 - 0.5, entity.position.y + h2 - 0.5)
-        connectors = {
-            top_left,
-            bottom_right
-        }
+    for _, position in pairs(self:GetConnectorPositions(entity)) do
+        local connector = self:CreateConnector(entity, position.x, position.y)
+        if connector and connector.valid then
+            table.insert(connectors, connector)
+
+            if self:IsPowerConductivityUnlocked(entity.force) then
+                self:CreatePowerPole(connector)
+            end
+        end
     end
 
     storage.connectors[entity.unit_number] = connectors
@@ -112,10 +146,21 @@ function NetworkSystem:CreateConnectors(entity)
     end
 end
 
+function NetworkSystem:RemovePowerPole(entity)
+    if storage.power_poles and storage.power_poles[entity.unit_number] then
+        local pole = storage.power_poles[entity.unit_number]
+        if pole and pole.valid then
+            pole.destroy()
+        end
+        storage.power_poles[entity.unit_number] = nil
+    end
+end
+
 function NetworkSystem:RemoveConnectors(entity)
     if storage.connectors and storage.connectors[entity.unit_number] then
         for _, connector in pairs(storage.connectors[entity.unit_number]) do
             if connector and connector.valid then
+                self:RemovePowerPole(connector)
                 storage.connector_entity[connector.unit_number] = nil
                 if connector and connector.valid then
                     connector.destroy()
@@ -171,6 +216,14 @@ function NetworkSystem:IsEntityWithConnector(entity)
         Constants.ENTITIES_WITH_CONNECTORS[entity.name] or false
 end
 
+function NetworkSystem:IsEntityWithPowerPole(entity)
+    if not entity or not entity.valid then
+        return false
+    end
+
+    return Constants.ENTITIES_WITH_POWER_POLES[entity.name] or false
+end
+
 function NetworkSystem:RebuildConnectors()
     storage.connectors = {}
     storage.connector_entity = {}
@@ -186,6 +239,24 @@ function NetworkSystem:RebuildConnectors()
         end
         for _, entity in pairs(surface.find_entities_filtered { type = Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):Keys() }) do
             self:CreateConnectors(entity)
+        end
+    end
+end
+
+function NetworkSystem:RebuildPowerPoles()
+    storage.power_poles = {}
+
+    for _, surface in pairs(game.surfaces) do
+        for _, entity in pairs(surface.find_entities_filtered { name = { Constants.HIDDEN_POWER_POLE_NAME } }) do
+            entity.destroy()
+        end
+
+        for _, entity in pairs(surface.find_entities_filtered {
+            name = Gridorius.Dictionary:new(Constants.ENTITIES_WITH_POWER_POLES):Keys()
+        }) do
+            if self:IsPowerConductivityUnlocked(entity.force) then
+                self:CreatePowerPole(entity)
+            end
         end
     end
 end
@@ -298,6 +369,10 @@ function NetworkSystem:HandleBuildEntity(event)
         return
     end
 
+    if self:IsEntityWithPowerPole(entity) and self:IsPowerConductivityUnlocked(entity.force) then
+        self:CreatePowerPole(entity)
+    end
+
     if self:IsEntityWithConnector(entity) then
         self:CreateConnectors(entity)
     end
@@ -319,6 +394,7 @@ function NetworkSystem:HandleBuildEntity(event)
             end
 
             self:RemoveConnectors(entity)
+            self:RemovePowerPole(entity)
             entity.destroy()
             game.print({ "message.items-network-server-already-connected" })
             return
@@ -349,6 +425,10 @@ function NetworkSystem:HandleMineEntity(event)
         self:RemoveConnectors(entity)
     end
 
+    if self:IsEntityWithPowerPole(entity) then
+        self:RemovePowerPole(entity)
+    end
+
     if entity.name == Constants.SERVER_NAME then
         storage.servers[entity.unit_number] = nil
     end
@@ -375,6 +455,14 @@ function NetworkSystem:HandleTick(event)
     for _, network in pairs(self.networks) do
         network:OnTick()
     end
+end
+
+function NetworkSystem:HandleResearchFinished(event)
+    if not event.research or event.research.name ~= Constants.POWER_TECH_NAME then
+        return
+    end
+
+    self:RebuildPowerPoles()
 end
 
 --#endregion

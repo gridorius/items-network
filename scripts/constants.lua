@@ -2,6 +2,8 @@ local Constants = {
     SERVER_NAME = "network-server",
     CABLE_NAME = "network-cable",
     CONNECTOR_NAME = "network-connector",
+    HIDDEN_POWER_POLE_NAME = "network-hidden-power-pole",
+    POWER_TECH_NAME = "network-power-conductivity",
     TERMINAL_NAME = "network-terminal",
     BUFFER_CHEST_NAME = "network-buffer-chest",
     FLUID_INPUT = "network-fluid-input",
@@ -76,6 +78,11 @@ Constants.ENTITIES_WITH_CONNECTORS = {
     [Constants.BUFFER_CHEST_NAME] = true,
     [Constants.FLUID_INPUT] = true,
     [Constants.FLUID_OUTPUT] = true,
+}
+
+Constants.ENTITIES_WITH_POWER_POLES = {
+    [Constants.CABLE_NAME] = true,
+    [Constants.CONNECTOR_NAME] = true,
 }
 
 return Constants

@@ -73,6 +73,42 @@ network_connector.collision_mask = {
 }
 network_connector.selection_box = { { 0, 0 }, { 0, 0 } }
 
+local network_hidden_power_pole = table.deepcopy(data.raw["electric-pole"]["small-electric-pole"])
+network_hidden_power_pole.name = "network-hidden-power-pole"
+network_hidden_power_pole.localised_name = { "entity-name.network-cable" }
+network_hidden_power_pole.hidden = true
+network_hidden_power_pole.hidden_in_factoriopedia = true
+network_hidden_power_pole.flags = {
+  "not-on-map",
+  "placeable-off-grid",
+  "not-blueprintable",
+  "not-deconstructable",
+  "hide-alt-info",
+}
+network_hidden_power_pole.minable = nil
+network_hidden_power_pole.selectable_in_game = false
+network_hidden_power_pole.collision_box = { { 0, 0 }, { 0, 0 } }
+network_hidden_power_pole.selection_box = { { 0, 0 }, { 0, 0 } }
+network_hidden_power_pole.collision_mask = { layers = {} }
+network_hidden_power_pole.maximum_wire_distance = 1.8
+network_hidden_power_pole.supply_area_distance = 1.5
+network_hidden_power_pole.draw_copper_wires = false
+network_hidden_power_pole.draw_circuit_wires = false
+network_hidden_power_pole.active_picture = nil
+network_hidden_power_pole.light = nil
+network_hidden_power_pole.pictures = {
+  filename = "__core__/graphics/empty.png",
+  priority = "low",
+  width = 1,
+  height = 1,
+  direction_count = 4,
+}
+network_hidden_power_pole.radius_visualisation_picture = {
+  filename = "__core__/graphics/empty.png",
+  width = 1,
+  height = 1,
+}
+
 -- Recolor every sprite layer recursively so the new entity reads as a distinct cable type.
 local cable_tint = { r = 0.2, g = 0.9, b = 1.0, a = 1.0 }
 local absorber_cable_tint = { r = 1.0, g = 0.7, b = 0.2, a = 1.0 }
@@ -225,6 +261,7 @@ data:extend({
   network_server_entity,
   network_cable_entity,
   network_connector,
+  network_hidden_power_pole,
   network_fluid_input_entity,
   network_fluid_output_entity,
   network_terminal_entity,
@@ -498,5 +535,24 @@ data:extend({
         { type = "character-logistic-trash-slots", modifier = 20 },
       },
     order = "c-z[network-player-supply]",
+  },
+  {
+    type = "technology",
+    name = "network-power-conductivity",
+    localised_name = { "technology-name.network-power-conductivity" },
+    localised_description = { "technology-description.network-power-conductivity" },
+    icon = "__base__/graphics/technology/electric-energy-distribution-1.png",
+    icon_size = 256,
+    prerequisites = { "logistic-science-pack", "items-network" },
+    unit = {
+      count = 75,
+      ingredients = {
+        { "automation-science-pack", 1 },
+        { "logistic-science-pack",   1 }
+      },
+      time = 15,
+    },
+    effects = {},
+    order = "c-z[network-power-conductivity]",
   },
 })

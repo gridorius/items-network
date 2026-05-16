@@ -11,6 +11,7 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 ## Features
 
 - Cable-based item network built from `Network cable`
+- `Network power conductivity`, which lets the network cable infrastructure conduct electricity after the related research is completed
 - `Network fluid intake pipe`, which pulls fluids from connected pipes into virtual storage
 - `Network fluid output pipe`, which outputs a selected fluid from the network into connected pipes
 - `Network terminal` with a custom GUI for browsing and withdrawing items
@@ -41,6 +42,7 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 7. Connect production machines so the network can refill their inputs automatically.
 8. Use a `Network buffer chest` to request exact items from virtual storage.
 9. Research `Player supply` to let servers fulfill personal logistic requests for players on the same surface.
+10. Research `Network power conductivity` if you want network cables and inline network devices to also carry electrical power.
 
 ## Quality Support
 
@@ -49,6 +51,8 @@ Items inside the network are tracked together with their quality level. The term
 ## Research and Recipes
 
 The mod unlocks its core devices through the `Item network` technology. After research, you can craft the full set of network entities from the logistics category.
+
+The `Network power conductivity` technology, which depends on `Item network` and logistic science, enables placed network cables and inline network devices to conduct electricity.
 
 Later, the `Player supply` technology enables network servers to fulfill personal logistic requests and pull character trash slots back into the network for players on the same surface.
 

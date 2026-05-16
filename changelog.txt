@@ -1,3 +1,9 @@
+Version: 1.3.0
+Date: 2026-05-17
+  Changes:
+    - Added the Network power conductivity technology, which unlocks electrical transfer through network cables after researching Item network and logistic science.
+    - Existing network cables and inline network devices now begin conducting electricity immediately after the new technology is researched.
+
 Version: 1.2.0
 Date: 2026-05-17
   Changes:
