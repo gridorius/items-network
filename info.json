@@ -2,7 +2,7 @@
   "name": "items-network",
   "version": "1.4.0",
   "title": "Items Network [BETA]",
-  "description": "A cable-based item and fluid logistics network with terminals, quality-aware item storage, machine IO, and network buffer chests.",
+  "description": "Digital storage of items with support for logical signals, input/output of items and liquids, distribution of items from the network to assemblers, furnaces, laboratories, and output of results back to the storage; the number of items produced can be controlled through logical signals; the network terminal issues signals for all contents",
   "author": "Gridorius",
   "factorio_version": "2.0",
   "dependencies": ["base"],

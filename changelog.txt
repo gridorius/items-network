@@ -1,26 +1,28 @@
+---------------------------------------------------------------------------------------------------
 Version: 1.4.0
-Date: 2026-05-18
+Date: 18.05.2026
   Changes:
     - Added the Underground network cable, including directional visuals and support for carrying both item-network connections and electricity between paired endpoints.
     - Updated all locale files for the Underground network cable and the Player supply technology.
-
+---------------------------------------------------------------------------------------------------
 Version: 1.3.2
-Date: 2026-05-17
+Date: 17.05.2026
   Bugfixes:
     - Personal logistics bug fix
+---------------------------------------------------------------------------------------------------
 Version: 1.3.0
-Date: 2026-05-17
+Date: 17.05.2026
   Changes:
     - Added the Network power conductivity technology, which unlocks electrical transfer through network cables after researching Item network and logistic science.
     - Existing network cables and inline network devices now begin conducting electricity immediately after the new technology is researched.
-
+---------------------------------------------------------------------------------------------------
 Version: 1.2.0
-Date: 2026-05-17
+Date: 17.05.2026
   Changes:
     - Added inventory expansion to the Player supply technology: it now grants 30 character inventory slots and 20 logistic trash slots.
-
+---------------------------------------------------------------------------------------------------
 Version: 1.1.0
-Date: 2026-05-17
+Date: 17.05.2026
   Changes:
     - Added the Player supply technology that lets network servers fulfill player logistic requests.
     - Updated localization and README text for the Player supply technology.
@@ -29,9 +31,9 @@ Date: 2026-05-17
   Bugfixes:
     - Aligned the Network cable item subgroup with its recipe category so both appear in the same crafting group.
     - Removed support for mining drills.
-
+---------------------------------------------------------------------------------------------------
 Version: 0.1.0
-Date: 2026-05-11
+Date: 11.05.2026
   Changes:
     - Added a dedicated GUI for Network fluid output pipes that opens on click and keeps the selected fluid per pipe.
     - Added blueprint tag and settings paste support for Network fluid output pipe filters.
@@ -47,9 +49,9 @@ Date: 2026-05-11
     - Skipped terminal signal rebuild work for terminals without real circuit wire connections.
     - Limited signal clearing to terminals that previously had active output sections.
     - Kept dirty-network signal propagation queued instead of refreshing every terminal on every update.
-
+---------------------------------------------------------------------------------------------------
 Version: 0.0.3
-Date: 2026-05-11
+Date: 11.05.2026
   Major Features:
     - Added fluid support to the network.
     - Added the Network fluid intake pipe based on pipe-to-ground.
