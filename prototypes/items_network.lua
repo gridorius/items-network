@@ -248,13 +248,13 @@ local network_fluid_input_item_icons = table.deepcopy(network_fluid_input_entity
 local network_fluid_input_item_icon_size = network_fluid_input_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
 local network_fluid_input_item_icon_mipmaps = pipe_to_ground_item and
-rawget(pipe_to_ground_item, "icon_mipmaps") or nil
+    rawget(pipe_to_ground_item, "icon_mipmaps") or nil
 
 local network_fluid_output_item_icons = table.deepcopy(network_fluid_output_entity.icons)
 local network_fluid_output_item_icon_size = network_fluid_output_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
 local network_fluid_output_item_icon_mipmaps = pipe_to_ground_item and
-rawget(pipe_to_ground_item, "icon_mipmaps") or nil
+    rawget(pipe_to_ground_item, "icon_mipmaps") or nil
 
 if network_cable_item_icons then
   for _, icon_layer in ipairs(network_cable_item_icons) do
@@ -501,9 +501,7 @@ data:extend({
     enabled = false,
     energy_required = 1,
     ingredients = {
-      { type = "item", name = "pipe-to-ground",     amount = 1 },
-      { type = "item", name = "network-cable",      amount = 2 },
-      { type = "item", name = "electronic-circuit", amount = 1 },
+      { type = "item", name = "network-cable", amount = 12 },
     },
     results = {
       { type = "item", name = "network-underground-cable", amount = 2 },
@@ -645,10 +643,10 @@ data:extend({
       },
       time = 15,
     },
-      effects = {
-        { type = "character-inventory-slots-bonus", modifier = 30 },
-        { type = "character-logistic-trash-slots", modifier = 20 },
-      },
+    effects = {
+      { type = "character-inventory-slots-bonus", modifier = 30 },
+      { type = "character-logistic-trash-slots",  modifier = 20 },
+    },
     order = "c-z[network-player-supply]",
   },
   {
