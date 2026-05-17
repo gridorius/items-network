@@ -113,8 +113,9 @@ function VirtualInventory:BuildSignals()
             value = {
                 type = "fluid",
                 name = name,
+                quality = "normal",
             },
-            max = amount,
+            min = amount,
         })
     end
 
