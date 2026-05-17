@@ -135,17 +135,73 @@ end
 apply_tint_to_sprites(network_cable_entity, cable_tint)
 apply_tint_to_sprites(network_connector, cable_tint)
 
+local pipe_to_ground_item = data.raw["item"]["pipe-to-ground"]
+local underground_cable_icon_path = "__items-network__/graphics/icons/underground-cable.png"
+local underground_cable_sprite_path = "__items-network__/graphics/entity/underground-cable"
+local underground_cable_sprite_scale = 0.78
+
+local network_underground_cable_entity = table.deepcopy(data.raw["pipe-to-ground"]["pipe-to-ground"])
+network_underground_cable_entity.name = "network-underground-cable"
+network_underground_cable_entity.localised_name = { "item-name.network-underground-cable" }
+network_underground_cable_entity.localised_description = { "item-description.network-underground-cable" }
+network_underground_cable_entity.minable = { mining_time = 0.1, result = "network-underground-cable" }
+
+apply_tint_to_sprites(network_underground_cable_entity, cable_tint)
+network_underground_cable_entity.icons = nil
+network_underground_cable_entity.icon = underground_cable_icon_path
+network_underground_cable_entity.icon_size = 64
+network_underground_cable_entity.pictures = {
+  north = {
+    filename = underground_cable_sprite_path .. "/north.png",
+    width = 64,
+    height = 64,
+    scale = underground_cable_sprite_scale,
+  },
+  east = {
+    filename = underground_cable_sprite_path .. "/east.png",
+    width = 64,
+    height = 64,
+    scale = underground_cable_sprite_scale,
+  },
+  south = {
+    filename = underground_cable_sprite_path .. "/south.png",
+    width = 64,
+    height = 64,
+    scale = underground_cable_sprite_scale,
+  },
+  west = {
+    filename = underground_cable_sprite_path .. "/west.png",
+    width = 64,
+    height = 64,
+    scale = underground_cable_sprite_scale,
+  },
+}
+network_underground_cable_entity.frozen_patch = nil
+network_underground_cable_entity.visualization = nil
+network_underground_cable_entity.disabled_visualization = nil
+network_underground_cable_entity.integration_patch = nil
+network_underground_cable_entity.integration_patch_render_layer = nil
+
+if network_underground_cable_entity.fluid_box then
+  network_underground_cable_entity.fluid_box.pipe_covers = nil
+
+  if network_underground_cable_entity.fluid_box.pipe_connections then
+    for _, connection in ipairs(network_underground_cable_entity.fluid_box.pipe_connections) do
+      connection.enable_working_visualisations = nil
+    end
+  end
+end
+
 local network_fluid_input_entity = table.deepcopy(data.raw["pipe-to-ground"]["pipe-to-ground"])
-local vanilla_pipe_to_ground_item = data.raw["item"]["pipe-to-ground"]
 network_fluid_input_entity.name = "network-fluid-input"
 network_fluid_input_entity.localised_name = { "item-name.network-fluid-input" }
 network_fluid_input_entity.localised_description = { "item-description.network-fluid-input" }
 network_fluid_input_entity.minable = { mining_time = 0.1, result = "network-fluid-input" }
 
-if vanilla_pipe_to_ground_item then
-  network_fluid_input_entity.icons = table.deepcopy(vanilla_pipe_to_ground_item.icons)
-  network_fluid_input_entity.icon = vanilla_pipe_to_ground_item.icon
-  network_fluid_input_entity.icon_size = vanilla_pipe_to_ground_item.icon_size
+if pipe_to_ground_item then
+  network_fluid_input_entity.icons = table.deepcopy(pipe_to_ground_item.icons)
+  network_fluid_input_entity.icon = pipe_to_ground_item.icon
+  network_fluid_input_entity.icon_size = pipe_to_ground_item.icon_size
 end
 
 if network_fluid_input_entity.fluid_box then
@@ -160,10 +216,10 @@ network_fluid_output_entity.localised_name = { "item-name.network-fluid-output" 
 network_fluid_output_entity.localised_description = { "item-description.network-fluid-output" }
 network_fluid_output_entity.minable = { mining_time = 0.1, result = "network-fluid-output" }
 
-if vanilla_pipe_to_ground_item then
-  network_fluid_output_entity.icons = table.deepcopy(vanilla_pipe_to_ground_item.icons)
-  network_fluid_output_entity.icon = vanilla_pipe_to_ground_item.icon
-  network_fluid_output_entity.icon_size = vanilla_pipe_to_ground_item.icon_size
+if pipe_to_ground_item then
+  network_fluid_output_entity.icons = table.deepcopy(pipe_to_ground_item.icons)
+  network_fluid_output_entity.icon = pipe_to_ground_item.icon
+  network_fluid_output_entity.icon_size = pipe_to_ground_item.icon_size
 end
 
 if network_fluid_output_entity.fluid_box then
@@ -177,17 +233,28 @@ local network_cable_item_icon_size = network_cable_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
 local network_cable_item_icon_mipmaps = rawget(network_cable_entity, "icon_mipmaps")
 
+local network_underground_cable_item_icons = {
+  {
+    icon = underground_cable_icon_path,
+    icon_size = 64,
+    scale = 0.85,
+  },
+}
+local network_underground_cable_item_icon_size = network_underground_cable_entity.icon_size
+---@diagnostic disable-next-line: undefined-field
+local network_underground_cable_item_icon_mipmaps = nil
+
 local network_fluid_input_item_icons = table.deepcopy(network_fluid_input_entity.icons)
 local network_fluid_input_item_icon_size = network_fluid_input_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
-local network_fluid_input_item_icon_mipmaps = vanilla_pipe_to_ground_item and
-rawget(vanilla_pipe_to_ground_item, "icon_mipmaps") or nil
+local network_fluid_input_item_icon_mipmaps = pipe_to_ground_item and
+rawget(pipe_to_ground_item, "icon_mipmaps") or nil
 
 local network_fluid_output_item_icons = table.deepcopy(network_fluid_output_entity.icons)
 local network_fluid_output_item_icon_size = network_fluid_output_entity.icon_size
 ---@diagnostic disable-next-line: undefined-field
-local network_fluid_output_item_icon_mipmaps = vanilla_pipe_to_ground_item and
-rawget(vanilla_pipe_to_ground_item, "icon_mipmaps") or nil
+local network_fluid_output_item_icon_mipmaps = pipe_to_ground_item and
+rawget(pipe_to_ground_item, "icon_mipmaps") or nil
 
 if network_cable_item_icons then
   for _, icon_layer in ipairs(network_cable_item_icons) do
@@ -198,6 +265,20 @@ else
     {
       icon = network_cable_entity.icon,
       icon_size = network_cable_item_icon_size,
+      tint = cable_tint,
+    },
+  }
+end
+
+if network_underground_cable_item_icons then
+  for _, icon_layer in ipairs(network_underground_cable_item_icons) do
+    icon_layer.tint = nil
+  end
+else
+  network_underground_cable_item_icons = {
+    {
+      icon = network_underground_cable_entity.icon,
+      icon_size = network_underground_cable_item_icon_size,
       tint = cable_tint,
     },
   }
@@ -260,6 +341,7 @@ network_buffer_chest_entity.render_not_in_network_icon = false
 data:extend({
   network_server_entity,
   network_cable_entity,
+  network_underground_cable_entity,
   network_connector,
   network_hidden_power_pole,
   network_fluid_input_entity,
@@ -308,6 +390,20 @@ data:extend({
     order = "a[network-cable]",
     place_result = "network-cable",
     stack_size = 200,
+  },
+
+  {
+    type = "item",
+    name = "network-underground-cable",
+    localised_name = { "item-name.network-underground-cable" },
+    localised_description = { "item-description.network-underground-cable" },
+    icons = network_underground_cable_item_icons,
+    icon_size = network_underground_cable_item_icon_size,
+    icon_mipmaps = network_underground_cable_item_icon_mipmaps,
+    subgroup = "items-network",
+    order = "aa[network-underground-cable]",
+    place_result = "network-underground-cable",
+    stack_size = 100,
   },
 
   {
@@ -393,6 +489,24 @@ data:extend({
     },
     results = {
       { type = "item", name = "network-cable", amount = 2 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-underground-cable",
+    localised_name = { "recipe-name.network-underground-cable" },
+    subgroup = "items-network",
+    order = "aa[network-underground-cable]",
+    enabled = false,
+    energy_required = 1,
+    ingredients = {
+      { type = "item", name = "pipe-to-ground",     amount = 1 },
+      { type = "item", name = "network-cable",      amount = 2 },
+      { type = "item", name = "electronic-circuit", amount = 1 },
+    },
+    results = {
+      { type = "item", name = "network-underground-cable", amount = 2 },
     },
   },
 
@@ -506,6 +620,7 @@ data:extend({
     },
     effects = {
       { type = "unlock-recipe", recipe = "network-cable" },
+      { type = "unlock-recipe", recipe = "network-underground-cable" },
       { type = "unlock-recipe", recipe = "network-terminal" },
       { type = "unlock-recipe", recipe = "network-server" },
       { type = "unlock-recipe", recipe = "network-fluid-input" },

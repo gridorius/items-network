@@ -11,6 +11,7 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 ## Features
 
 - Cable-based item network built from `Network cable`
+- `Underground network cable`, which bridges item-network and power continuity between two endpoints under obstacles
 - `Network power conductivity`, which lets the network cable infrastructure conduct electricity after the related research is completed
 - `Network fluid intake pipe`, which pulls fluids from connected pipes into virtual storage
 - `Network fluid output pipe`, which outputs a selected fluid from the network into connected pipes
@@ -26,6 +27,7 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 
 - Network server
 - Network cable
+- Underground network cable
 - Network terminal
 - Network fluid intake pipe
 - Network fluid output pipe

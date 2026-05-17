@@ -1,6 +1,7 @@
 local Constants = {
     SERVER_NAME = "network-server",
     CABLE_NAME = "network-cable",
+    UNDERGROUND_CABLE_NAME = "network-underground-cable",
     CONNECTOR_NAME = "network-connector",
     HIDDEN_POWER_POLE_NAME = "network-hidden-power-pole",
     POWER_TECH_NAME = "network-power-conductivity",
@@ -61,11 +62,13 @@ Constants.ENTITY_TYPES_MAP = {
     [Constants.FLUID_INPUT] = Constants.TYPE.FLUID_INPUT,
     [Constants.FLUID_OUTPUT] = Constants.TYPE.FLUID_OUTPUT,
     [Constants.CABLE_NAME] = Constants.TYPE.CABLE,
+    [Constants.UNDERGROUND_CABLE_NAME] = Constants.TYPE.CABLE,
 }
 
 Constants.SUPPORTED_ENTITIES = {
     [Constants.SERVER_NAME] = true,
     [Constants.CABLE_NAME] = true,
+    [Constants.UNDERGROUND_CABLE_NAME] = true,
     [Constants.TERMINAL_NAME] = true,
     [Constants.BUFFER_CHEST_NAME] = true,
     [Constants.FLUID_INPUT] = true,
@@ -74,6 +77,7 @@ Constants.SUPPORTED_ENTITIES = {
 
 Constants.ENTITIES_WITH_CONNECTORS = {
     [Constants.SERVER_NAME] = true,
+    [Constants.UNDERGROUND_CABLE_NAME] = true,
     [Constants.TERMINAL_NAME] = true,
     [Constants.BUFFER_CHEST_NAME] = true,
     [Constants.FLUID_INPUT] = true,
@@ -83,6 +87,11 @@ Constants.ENTITIES_WITH_CONNECTORS = {
 Constants.ENTITIES_WITH_POWER_POLES = {
     [Constants.CABLE_NAME] = true,
     [Constants.CONNECTOR_NAME] = true,
+}
+
+Constants.CABLE_ENTITIES = {
+    [Constants.CABLE_NAME] = true,
+    [Constants.UNDERGROUND_CABLE_NAME] = true,
 }
 
 return Constants

@@ -32,6 +32,9 @@ function NetworkSystem:new()
     Gridorius.Events:On(defines.events.on_research_finished, function(event)
         self:HandleResearchFinished(event)
     end)
+    Gridorius.Events:On(defines.events.on_player_rotated_entity, function(event)
+        self:HandleRotatedEntity(event)
+    end)
     Gridorius.Events:OnNthTick(1, function(event) self:HandleTick(event) end)
     Gridorius.Events:On(defines.events.on_runtime_mod_setting_changed, function(event)
         if event.setting == "network_machines_per_tick" then
@@ -232,7 +235,7 @@ function NetworkSystem:RebuildConnectors()
         for _, entity in pairs(surface.find_entities_filtered { name = { Constants.CONNECTOR_NAME } }) do
             entity.destroy()
         end
-        for _, entity in pairs(surface.find_entities_filtered { name = { Constants.TERMINAL_NAME, Constants.BUFFER_CHEST_NAME, Constants.FLUID_INPUT, Constants.FLUID_OUTPUT } }) do
+        for _, entity in pairs(surface.find_entities_filtered { name = { Constants.TERMINAL_NAME, Constants.BUFFER_CHEST_NAME, Constants.FLUID_INPUT, Constants.FLUID_OUTPUT, Constants.UNDERGROUND_CABLE_NAME } }) do
             self:CreateConnectors(entity)
         end
         for _, entity in pairs(surface.find_entities_filtered { type = Gridorius.Dictionary:new(Constants.MACHINE_TYPES):Keys() }) do
@@ -277,6 +280,39 @@ function NetworkSystem:RebuildAllNetworks(surface_index)
     end
 end
 
+function NetworkSystem:GetNextUndergroundConnector(entity, visited)
+    if not entity or not entity.valid or entity.name ~= Constants.UNDERGROUND_CABLE_NAME then
+        return nil
+    end
+
+    for _, neighbors in pairs(entity.neighbours) do
+        for _, neighbor in pairs(neighbors) do
+            if neighbor and neighbor.valid and neighbor.name == Constants.UNDERGROUND_CABLE_NAME and neighbor.unit_number ~= entity.unit_number then
+                local connector = storage.connectors and storage.connectors[neighbor.unit_number] and
+                    storage.connectors[neighbor.unit_number][1]
+                if connector and connector.valid and not visited[connector.unit_number] then
+                    return connector
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+function NetworkSystem:ConnectUndergroundPoles(connector1, connector2)
+    local pole1 = storage.power_poles and storage.power_poles[connector1.unit_number]
+    local pole2 = storage.power_poles and storage.power_poles[connector2.unit_number]
+
+    if pole1 and pole1.valid and pole2 and pole2.valid then
+        local wire_connector1 = pole1.get_wire_connector(defines.wire_connector_id.pole_copper)
+        local wire_connector2 = pole2.get_wire_connector(defines.wire_connector_id.pole_copper)
+        if wire_connector1 and wire_connector2 then
+            wire_connector1.connect_to(wire_connector2, false)
+        end
+    end
+end
+
 function NetworkSystem:ConnectNeighbor(network, entity, visited)
     visited = visited or {}
     if visited[entity.unit_number] then
@@ -285,12 +321,19 @@ function NetworkSystem:ConnectNeighbor(network, entity, visited)
     visited[entity.unit_number] = true
     if entity.name == Constants.CABLE_NAME then
         network:AttachEntity(entity)
-        -- self:ConnectNeighbor(network, entity, visited)
     end
     if entity.name == Constants.CONNECTOR_NAME then
         local connected_entity = storage.connector_entity and storage.connector_entity[entity.unit_number]
         if connected_entity and connected_entity.valid then
-            network:AttachEntity(connected_entity)
+            if connected_entity.name == Constants.UNDERGROUND_CABLE_NAME then
+                local next_connector = self:GetNextUndergroundConnector(connected_entity, visited)
+                if next_connector and next_connector.valid then
+                    self:ConnectUndergroundPoles(entity, next_connector)
+                    self:ConnectNeighbor(network, next_connector, visited)
+                end
+            else
+                network:AttachEntity(connected_entity)
+            end
         end
     end
 
@@ -456,6 +499,22 @@ function NetworkSystem:HandleTick(event)
     for _, network in pairs(self.networks) do
         network:OnTick()
     end
+end
+
+function NetworkSystem:HandleRotatedEntity(event)
+    local entity = event.entity
+    if not entity or not entity.valid or entity.name ~= Constants.UNDERGROUND_CABLE_NAME then
+        return
+    end
+
+    local connector = storage.connectors and storage.connectors[entity.unit_number] and
+        storage.connectors[entity.unit_number][1]
+    if connector and connector.valid then
+        self:RemovePowerPole(connector)
+        self:CreatePowerPole(connector)
+    end
+
+    self:MarkAsChanged(entity.surface.index)
 end
 
 function NetworkSystem:HandleResearchFinished(event)
