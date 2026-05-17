@@ -412,21 +412,25 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
 end
 
 function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
+    local point = entity.get_requester_point()
+
+    if not point or not point.enabled then
+         return
+    end
+
     if trash and trash.valid then
         self:CollectInventory(trash)
     end
-    local point = entity.get_requester_point()
     if not point then
         return
     end
 
     local filters = point.filters
-
     if not filters then
         return
     end
 
-    if inventory:IsFull() or not filters then
+    if not inventory or not inventory.valid or inventory.is_full() or not filters then
         return
     end
 
@@ -436,10 +440,10 @@ function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
             local name = filter.name
             local quality = filter.quality or "normal"
             local count = filter.count
-            local current_count = inventory:GetItemCount(name, quality)
+            local current_count = inventory.get_item_count({ name = name, quality = quality })
             if current_count < count then
                 local needed = count - current_count
-                local moved = self:MoveToInventory({ name = name, quality = quality }, needed, inventory.inventory)
+                local moved = self:MoveToInventory({ name = name, quality = quality }, needed, inventory)
                 if moved < needed then
                     break
                 end
@@ -449,13 +453,13 @@ function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
 end
 
 function VirtualInventory:ProcessBufferChest(chest)
-    local inventory = Gridorius.Inventory:new(chest.get_inventory(defines.inventory.chest))
+    local inventory = chest.get_inventory(defines.inventory.chest)
     local trash = chest.get_inventory(defines.inventory.logistic_container_trash)
     self:ProcessLogisticInventory(chest, inventory, trash)
 end
 
 function VirtualInventory:ProcessPlayer(player)
-    local inventory = Gridorius.Inventory:new(player.get_main_inventory())
+    local inventory = player.get_main_inventory()
     local trash = player.get_inventory(defines.inventory.character_trash)
     self:ProcessLogisticInventory(player, inventory, trash)
 end
