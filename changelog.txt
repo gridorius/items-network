@@ -1,3 +1,7 @@
+Version: 1.3.2
+Date: 2026-05-18
+  Bugfixes:
+    - Personal logistics bug fix
 Version: 1.3.0
 Date: 2026-05-17
   Changes:
@@ -19,6 +23,7 @@ Date: 2026-05-17
   Bugfixes:
     - Aligned the Network cable item subgroup with its recipe category so both appear in the same crafting group.
     - Removed support for mining drills.
+
 Version: 0.1.0
 Date: 2026-05-11
   Changes:
