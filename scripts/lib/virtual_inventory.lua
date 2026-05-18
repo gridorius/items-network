@@ -444,10 +444,7 @@ function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
             local current_count = inventory.get_item_count({ name = name, quality = quality })
             if current_count < count then
                 local needed = count - current_count
-                local moved = self:MoveToInventory({ name = name, quality = quality }, needed, inventory)
-                if moved < needed then
-                    break
-                end
+                self:MoveToInventory({ name = name, quality = quality }, needed, inventory)
             end
         end
     end
