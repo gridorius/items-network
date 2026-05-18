@@ -20,6 +20,7 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 - `Network buffer chest`, which requests items from virtual storage and returns trash slots back into the network
 - `Player supply`, which lets network servers fulfill player logistic requests and return character trash slots back into the network on the same surface
 - Automatic machine input feeding from network storage
+- Automatic ammo refilling for connected turrets from network storage
 - Full Quality support in storage, requests, GUI, and machine supply
 - More even distribution of items across machines to reduce idle time and input overfill
 
@@ -42,9 +43,10 @@ The mod lets you build local cable-based item networks, connect terminals and ma
 5. Insert a `Network fluid intake pipe` into the cable line and connect it to a fluid pipe to import fluids into the network.
 6. Insert a `Network fluid output pipe` into the cable line, choose the required fluid in its interface, and output it into connected pipes.
 7. Connect production machines so the network can refill their inputs automatically.
-8. Use a `Network buffer chest` to request exact items from virtual storage.
-9. Research `Player supply` to let servers fulfill personal logistic requests for players on the same surface.
-10. Research `Network power conductivity` if you want network cables and inline network devices to also carry electrical power.
+8. Connect turrets if you want the network to keep their ammo topped up automatically.
+9. Use a `Network buffer chest` to request exact items from virtual storage.
+10. Research `Player supply` to let servers fulfill personal logistic requests for players on the same surface.
+11. Research `Network power conductivity` if you want network cables and inline network devices to also carry electrical power.
 
 ## Quality Support
 
@@ -52,7 +54,7 @@ Items inside the network are tracked together with their quality level. The term
 
 ## Research and Recipes
 
-The mod unlocks its core devices through the `Item network` technology. After research, you can craft the full set of network entities from the logistics category.
+The mod unlocks its core devices through the `Item network` technology. After research, you can craft the full set of network entities from the logistics category and use the network to keep connected machines and turrets supplied.
 
 The `Network power conductivity` technology, which depends on `Item network` and logistic science, enables placed network cables and inline network devices to conduct electricity.
 

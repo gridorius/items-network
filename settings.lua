@@ -19,5 +19,12 @@ data:extend({
         setting_type = "runtime-global",
         default_value = 0.5,
         order = "c"
+    },
+    {
+        type = "bool-setting",
+        name = "fill_turret_ammo",
+        setting_type = "runtime-global",
+        default_value = true,
+        order = "d"
     }
 })

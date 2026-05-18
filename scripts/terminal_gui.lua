@@ -1,4 +1,5 @@
 local Gui = Gridorius.Gui
+local Constants = require("constants")
 Gui:AddStylesheet({
 	spacing_5 = {
 		horizontal_spacing = 5,
@@ -40,6 +41,47 @@ function TerminalGui.render_fuels(player, table)
 				element.style.size = 40
 			end):RenderElement(player, table)
 		end
+	end
+end
+
+function TerminalGui.render_ammo(player, ammo_table)
+	ammo_table.clear()
+	local current_network = Gridorius.state:get_player(player.index, "network")
+
+	if not current_network then return end
+	local used_categories = {}
+
+	for name, prototype in pairs(prototypes.entity) do
+		if Constants.SUPPORTED_TURRET_TYPES[prototype.type] then
+			local ammo_categories = prototype.attack_parameters and prototype.attack_parameters.ammo_categories
+			if ammo_categories then
+				for _, ammo_category in pairs(ammo_categories) do
+					used_categories[ammo_category] = true
+				end
+			end
+		end
+	end
+
+	local ammo_items = {}
+
+	for _, item in pairs(prototypes.item) do
+		if item.ammo_category and used_categories[item.ammo_category.name] then
+			ammo_items[item.name] = item
+		end
+	end
+
+	for ammo_name, ammo_item in pairs(ammo_items) do
+		local use = current_network.storage.use_ammo[ammo_name] or false
+		Gui:CreateSpriteButton(ammo_name, "item/" .. ammo_name, {
+			tags = {
+				type = 'ammo',
+				ammo_name = ammo_name,
+			},
+			toggle_mode = true,
+			toggled = use,
+		}):AfterCreate(function(element)
+			element.style.size = 40
+		end):RenderElement(player, ammo_table)
 	end
 end
 
@@ -263,6 +305,11 @@ Gui:OnTaggedClick(function(tags, event)
 		use_fuels[tags.fuel_name] = not use_fuels[tags.fuel_name]
 		local fuel_table = player.gui.screen.terminal_frame.content.right.fuel_table
 		TerminalGui.render_fuels(player, fuel_table)
+	elseif tags.type == 'ammo' then
+		local use_ammo = current_network.storage.use_ammo
+		use_ammo[tags.ammo_name] = not use_ammo[tags.ammo_name]
+		local ammo_table = player.gui.screen.terminal_frame.content.right.ammo_table
+		TerminalGui.render_ammo(player, ammo_table)
 	elseif tags.type == "item" then
 		local item_name = element.tags.item_name
 		local quality = element.tags.quality
@@ -297,6 +344,45 @@ end)
 
 function TerminalGui.BindInterfaces()
 	local network_system = Gridorius.state:get("network_system")
+	local right_flow = Gui:CreateFlow("right", "vertical")
+		:AfterCreateChilds(function(flow, player)
+			if settings.global.fill_turret_ammo.value then
+				Gui:RenderElements(
+					player, flow,
+
+					Gui:CreateLabel({ "gui.items-network-use-ammo" }),
+					Gui:CreateTable("ammo_table", 10)
+					:SetClasses("spacing_5")
+					:AfterCreate(function(table, player)
+						TerminalGui.render_ammo(player, table)
+					end)
+				)
+			end
+		end)
+		:AppendChildrens(
+			Gui:CreateLabel(function(player)
+				local network = Gridorius.state:get_player(player.index, "network")
+				return { "gui.items-network-terminal-network-value", network.id }
+			end),
+			Gui:CreateLabel(function(player)
+				local network = Gridorius.state:get_player(player.index, "network")
+				return { "gui.items-network-full-processing-ticks", network.storage.distribute_index }
+			end),
+			Gui:CreateLabel({ "gui.items-network-network-entities" }),
+			Gui:CreateTable("machines_table", 10)
+			:SetClasses("spacing_5")
+			:AfterCreate(function(table, player)
+				TerminalGui.render_machines(player, table)
+			end),
+			Gui:CreateLabel({ "gui.items-network-use-fuel" }),
+			Gui:CreateTable("fuel_table", 10)
+			:SetClasses("spacing_5")
+			:AfterCreate(function(table, player)
+				TerminalGui.render_fuels(player, table)
+			end)
+		)
+
+
 	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", { "gui.items-network-terminal-title" })
 		:AppendChild(
 			Gui:CreateFlow("content")
@@ -324,29 +410,7 @@ function TerminalGui.BindInterfaces()
 					)
 				),
 				Gui:CreateSpace(10, "vertical"),
-				Gui:CreateFlow("right", "vertical")
-				:AppendChildrens(
-					Gui:CreateLabel(function(player)
-						local network = Gridorius.state:get_player(player.index, "network")
-						return { "gui.items-network-terminal-network-value", network.id }
-					end),
-					Gui:CreateLabel(function(player)
-						local network = Gridorius.state:get_player(player.index, "network")
-						return { "gui.items-network-full-processing-ticks", network.storage.distribute_index }
-					end),
-					Gui:CreateLabel({ "gui.items-network-network-entities" }),
-					Gui:CreateTable("machines_table", 5)
-					:SetClasses("spacing_5")
-					:AfterCreate(function(table, player)
-						TerminalGui.render_machines(player, table)
-					end),
-					Gui:CreateLabel({ "gui.items-network-use-fuel" }),
-					Gui:CreateTable("fuel_table", 5)
-					:SetClasses("spacing_5")
-					:AfterCreate(function(table, player)
-						TerminalGui.render_fuels(player, table)
-					end)
-				)
+				right_flow
 			)
 		)
 

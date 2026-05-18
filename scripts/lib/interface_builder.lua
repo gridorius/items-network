@@ -42,6 +42,11 @@ function InterfaceBuilder:AfterCreate(handler)
     return self
 end
 
+function InterfaceBuilder:AfterCreateChilds(handler)
+    self.after_create_childs_handler = handler
+    return self
+end
+
 function InterfaceBuilder:OnClick(handler)
     if not self.name then return self end
     self.gui.click_name_handlers[self.name] = function(event)
@@ -98,6 +103,9 @@ end
 function InterfaceBuilder:RenderElementData(element, classes, player, hierarhy)
     self.gui:ApplyStyles(element, classes)
     self:RenderChildren(player, element, hierarhy)
+    if self.after_create_childs_handler then
+        self.after_create_childs_handler(element, player)
+    end
     return element
 end
 

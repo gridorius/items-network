@@ -9,12 +9,18 @@ local Constants = {
     BUFFER_CHEST_NAME = "network-buffer-chest",
     FLUID_INPUT = "network-fluid-input",
     FLUID_OUTPUT = "network-fluid-output",
+    AMMO_TURRET_TYPE = "ammo-turret",
+    ARTILLERY_TURRET_TYPE = "artillery-turret",
     REBUILD_DELAY = 60,
     MACHINE_TYPES = {
         ["assembling-machine"] = true,
         ["furnace"] = true,
         ["lab"] = true,
         ["rocket-silo"] = true,
+    },
+    TURRET_TYPES = {
+        ["ammo-turret"] = true,
+        ["artillery-turret"] = true,
     },
     ABSORBABLE_CHEST_TYPES = {
         ["container"] = true,
@@ -30,6 +36,7 @@ local Constants = {
         CHEST = "chest",
         UNKNOWN = "unknown",
         CABLE = "cable",
+        TURRET = "turret",
     },
     DISTRIBUTE_PACK_SIZE = 2,
     -- DISTRIBUTE_PACK_SIZE = 20,
@@ -63,6 +70,11 @@ Constants.ENTITY_TYPES_MAP = {
     [Constants.FLUID_OUTPUT] = Constants.TYPE.FLUID_OUTPUT,
     [Constants.CABLE_NAME] = Constants.TYPE.CABLE,
     [Constants.UNDERGROUND_CABLE_NAME] = Constants.TYPE.CABLE,
+}
+
+Constants.SUPPORTED_TURRET_TYPES = {
+    [Constants.AMMO_TURRET_TYPE] = true,
+    [Constants.ARTILLERY_TURRET_TYPE] = true,
 }
 
 Constants.SUPPORTED_ENTITIES = {

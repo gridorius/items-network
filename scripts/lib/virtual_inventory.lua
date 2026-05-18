@@ -314,6 +314,26 @@ function VirtualInventory:ProcessLab(lab)
     end
 end
 
+function VirtualInventory:ProcessTurret(inventory, use_ammo)
+    if not (inventory and inventory.valid) then
+        return
+    end
+
+    local current_count = inventory.get_item_count()
+    if current_count > 10 then
+        return
+    end
+
+    for ammo_name, use in pairs(use_ammo) do
+        if use then
+            local moved = self:MoveToInventory({ name = ammo_name }, 10, inventory)
+            if moved > 0 then
+                break
+            end
+        end
+    end
+end
+
 function VirtualInventory:ProcessMachine(machine, use_fuels)
     if machine and machine.valid then
         if machine.type == "lab" then
@@ -416,7 +436,7 @@ function VirtualInventory:ProcessLogisticInventory(entity, inventory, trash)
     local point = entity.get_requester_point()
 
     if not point or not point.enabled then
-         return
+        return
     end
 
     if trash and trash.valid then

@@ -41,6 +41,11 @@ function NetworkSystem:new()
             for _, surface in pairs(game.surfaces) do
                 self:RebuildAllNetworks(surface.index)
             end
+        elseif event.setting == "fill_turret_ammo" then
+            for _, surface in pairs(game.surfaces) do
+                self:RebuildConnectors()
+                self:RebuildAllNetworks(surface.index)
+            end
         end
     end)
     return self
@@ -207,6 +212,14 @@ function NetworkSystem:IsSupportedEntity(entity)
         return false
     end
 
+    if Constants.TURRET_TYPES[entity.type] then
+        if settings.global.fill_turret_ammo.value then
+            return true
+        else
+            return false
+        end
+    end
+
     return Constants.MACHINE_TYPES[entity.type] or Constants.ABSORBABLE_CHEST_TYPES[entity.type] or
         Constants.SUPPORTED_ENTITIES[entity.name] or false
 end
@@ -217,7 +230,7 @@ function NetworkSystem:IsEntityWithConnector(entity)
     end
 
     return Constants.MACHINE_TYPES[entity.type] or Constants.ABSORBABLE_CHEST_TYPES[entity.type] or
-        Constants.ENTITIES_WITH_CONNECTORS[entity.name] or false
+        Constants.ENTITIES_WITH_CONNECTORS[entity.name] or Constants.TURRET_TYPES[entity.type] or false
 end
 
 function NetworkSystem:IsEntityWithPowerPole(entity)
@@ -240,6 +253,11 @@ function NetworkSystem:RebuildConnectors()
         end
         for _, entity in pairs(surface.find_entities_filtered { type = Gridorius.Dictionary:new(Constants.MACHINE_TYPES):Keys() }) do
             self:CreateConnectors(entity)
+        end
+        if settings.global.fill_turret_ammo.value then
+            for _, entity in pairs(surface.find_entities_filtered { type = Gridorius.Dictionary:new(Constants.TURRET_TYPES):Keys() }) do
+                self:CreateConnectors(entity)
+            end
         end
         for _, entity in pairs(surface.find_entities_filtered { type = Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):Keys() }) do
             self:CreateConnectors(entity)

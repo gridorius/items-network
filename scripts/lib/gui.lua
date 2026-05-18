@@ -110,6 +110,14 @@ function Gui:OnNthTick(tick, handler)
     return self
 end
 
+function Gui:RenderElements(player, target, ...)
+    local elements = { ... }
+    for i = 1, #elements do
+        local element = elements[i]
+        element:RenderElement(player, target)
+    end
+end
+
 --#region Gui operations
 
 function Gui:RenderInterface(player, binding, entity)
@@ -229,7 +237,7 @@ end
 function Gui:CreateButton(name, caption, properties)
     return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
         return parent.add(Gridorius.MergeProperties(
-        { type = "button", name = name, caption = Gui:GetValue(caption, player) }, properties))
+            { type = "button", name = name, caption = Gui:GetValue(caption, player) }, properties))
     end)
 end
 
@@ -250,7 +258,7 @@ end
 function Gui:CreateSpriteButton(name, sprite, properties)
     return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
         return parent.add(Gridorius.MergeProperties(
-        { type = "sprite-button", name = name, sprite = Gui:GetValue(sprite, player) }, properties))
+            { type = "sprite-button", name = name, sprite = Gui:GetValue(sprite, player) }, properties))
     end)
 end
 

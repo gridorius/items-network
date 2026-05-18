@@ -27,6 +27,7 @@ function Network:InitStorage(network_id)
             entities = {},
             typed_entities = {},
             use_fuels = {},
+            use_ammo = {},
             server = nil,
         }
     else
@@ -34,6 +35,7 @@ function Network:InitStorage(network_id)
         storage.networks[network_id].server = storage.networks[network_id].server or nil
         storage.networks[network_id].entities = storage.networks[network_id].entities or {}
         storage.networks[network_id].use_fuels = storage.networks[network_id].use_fuels or {}
+        storage.networks[network_id].use_ammo = storage.networks[network_id].use_ammo or {}
     end
 end
 
@@ -105,13 +107,14 @@ function Network:ResolveEntityType(entity)
     if not entity or not entity.valid then
         return nil
     end
-
     if Constants.ENTITY_TYPES_MAP[entity.name] then
         return Constants.ENTITY_TYPES_MAP[entity.name]
     end
-
     if Constants.MACHINE_TYPES[entity.type] then
         return Constants.TYPE.MACHINE
+    end
+    if Constants.TURRET_TYPES[entity.type] then
+        return Constants.TYPE.TURRET
     end
     if Constants.ABSORBABLE_CHEST_TYPES[entity.type] then
         return Constants.TYPE.CHEST
@@ -192,6 +195,7 @@ function Network:OnTick()
                 self:ResetEntities()
             end
         end
+        self:ProcessTurrets()
     end
 
     local distribute_index = game.tick % (self.storage.distribute_index + 1)
@@ -200,6 +204,23 @@ function Network:OnTick()
     self:FillFluidOutputs(distribute_index)
     self:ProcessMachines(distribute_index)
     self:ProcessBufferChests(distribute_index)
+end
+
+function Network:ProcessTurrets()
+    local turrets = self:GetTypeEntities(Constants.TYPE.TURRET)
+    for _, turret in pairs(turrets) do
+        if turret and turret.valid then
+            local inventory = nil
+            if turret.type == Constants.AMMO_TURRET_TYPE then
+                inventory = turret.get_inventory(defines.inventory.turret_ammo)
+            elseif turret.type == Constants.ARTILLERY_TURRET_TYPE then
+                inventory = turret.get_inventory(defines.inventory.artillery_turret_ammo)
+            end
+            if inventory then
+                self.inventory:ProcessTurret(inventory, self.storage.use_ammo)
+            end
+        end
+    end
 end
 
 function Network:ProcessMachines(distribute_index)
