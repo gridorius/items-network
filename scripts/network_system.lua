@@ -20,6 +20,8 @@ function NetworkSystem:new()
     self.rebuild_delay = 0
 
     rendering.clear("items-network")
+    -- todo: old compatible
+    self:ForceSetServersMinable()
     self:InitNetworks()
     self:RebuildEnergyInterfaces()
     self:RebuildPowerPoles()
@@ -48,6 +50,16 @@ function NetworkSystem:new()
         end
     end)
     return self
+end
+
+function NetworkSystem:ForceSetServersMinable()
+    for _, surface in pairs(game.surfaces) do
+        for _, server in pairs(surface.find_entities_filtered { name = Constants.SERVER_NAME }) do
+            if server and server.valid then
+                server.minable = true
+            end
+        end
+    end
 end
 
 function NetworkSystem:GetNextNetworkId()

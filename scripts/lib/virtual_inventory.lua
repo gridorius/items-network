@@ -9,6 +9,7 @@ function VirtualInventory:new(inventory_id)
     self.fluids = storage_inventory.fluids
     self.insert_fluid_per_operation = settings.global.insert_fluid_per_operation.value or 20
     self.insert_item_stack_per_operation = settings.global.insert_item_stack_per_operation.value or 0.5
+    self:ClearInvalidData()
 
     Gridorius.Events:On(defines.events.on_runtime_mod_setting_changed, function(event)
         if event.setting == "insert_fluid_per_operation" then
@@ -19,6 +20,20 @@ function VirtualInventory:new(inventory_id)
     end)
 
     return self
+end
+
+function VirtualInventory:ClearInvalidData()
+    for name, _ in pairs(self.items) do
+        if not prototypes.item[name] then
+            self.items[name] = nil
+        end
+    end
+
+    for name, _ in pairs(self.fluids) do
+        if not prototypes.fluid[name] then
+            self.fluids[name] = nil
+        end
+    end
 end
 
 function VirtualInventory:AttachOrCreateStorage(inventory_id)

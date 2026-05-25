@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.9.3
+Date: 18.05.2026
+  Bugfixes:
+    - automatic clear virtual inventory of invalid items and fluids on load and when settings change
+    - fix server minable state on old saves
+---------------------------------------------------------------------------------------------------
 Version: 1.9.2
 Date: 18.05.2026
   Bugfixes:
