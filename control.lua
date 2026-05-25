@@ -32,11 +32,13 @@ local function request_translations()
             table.insert(localised_strings, fluid.localised_name)
         end
     end
+    storage.translation_initialized = true
     game.connected_players[1].request_translations(localised_strings)
 end
 
 local function on_string_translated(event)
-    if event.translated and event.result and event.localised_string and event.localised_string[1] then
+    if storage.translation_initialized and event.translated and event.result and event.localised_string and event.localised_string[1] then
+        storage.translation = storage.translation or {}
         local item_name = util.split(event.localised_string[1], ".")[2]
         if item_name then
             storage.translation[item_name] = event.result
