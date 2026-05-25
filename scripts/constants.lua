@@ -1,8 +1,9 @@
 local Constants = {
     SERVER_NAME = "network-server",
     CABLE_NAME = "network-cable",
-    UNDERGROUND_CABLE_NAME = "network-underground-cable",
     CONNECTOR_NAME = "network-connector",
+    PRODUCTION_COMBINATOR_NAME = "network-production-combinator",
+    NETWORK_STORAGE_CHEST_NAME = "network-storage-chest",
     HIDDEN_POWER_POLE_NAME = "network-hidden-power-pole",
     POWER_TECH_NAME = "network-power-conductivity",
     TERMINAL_NAME = "network-terminal",
@@ -11,7 +12,8 @@ local Constants = {
     FLUID_OUTPUT = "network-fluid-output",
     AMMO_TURRET_TYPE = "ammo-turret",
     ARTILLERY_TURRET_TYPE = "artillery-turret",
-    REBUILD_DELAY = 60,
+    ENERGY_INTERFACE_NAME = "network-hidden-energy-interface",
+    REBUILD_DELAY = 20,
     MACHINE_TYPES = {
         ["assembling-machine"] = true,
         ["furnace"] = true,
@@ -25,6 +27,7 @@ local Constants = {
     ABSORBABLE_CHEST_TYPES = {
         ["container"] = true,
         ["infinity-container"] = true,
+        ['asteroid-collector'] = true,
     },
     TYPE = {
         SERVER = "server",
@@ -36,7 +39,9 @@ local Constants = {
         CHEST = "chest",
         UNKNOWN = "unknown",
         CABLE = "cable",
+        CONNECTOR = "connector",
         TURRET = "turret",
+        PRODUCTION_COMBINATOR = "production_combinator",
     },
     DISTRIBUTE_PACK_SIZE = 2,
     -- DISTRIBUTE_PACK_SIZE = 20,
@@ -54,6 +59,8 @@ local Constants = {
     }
 }
 
+
+
 Constants.DISTRIBUTABLE_TYPES = {
     [Constants.TYPE.MACHINE] = true,
     [Constants.TYPE.CHEST] = true,
@@ -69,7 +76,8 @@ Constants.ENTITY_TYPES_MAP = {
     [Constants.FLUID_INPUT] = Constants.TYPE.FLUID_INPUT,
     [Constants.FLUID_OUTPUT] = Constants.TYPE.FLUID_OUTPUT,
     [Constants.CABLE_NAME] = Constants.TYPE.CABLE,
-    [Constants.UNDERGROUND_CABLE_NAME] = Constants.TYPE.CABLE,
+    [Constants.CONNECTOR_NAME] = Constants.TYPE.CONNECTOR,
+    [Constants.PRODUCTION_COMBINATOR_NAME] = Constants.TYPE.PRODUCTION_COMBINATOR,
 }
 
 Constants.SUPPORTED_TURRET_TYPES = {
@@ -80,30 +88,33 @@ Constants.SUPPORTED_TURRET_TYPES = {
 Constants.SUPPORTED_ENTITIES = {
     [Constants.SERVER_NAME] = true,
     [Constants.CABLE_NAME] = true,
-    [Constants.UNDERGROUND_CABLE_NAME] = true,
-    [Constants.TERMINAL_NAME] = true,
-    [Constants.BUFFER_CHEST_NAME] = true,
-    [Constants.FLUID_INPUT] = true,
-    [Constants.FLUID_OUTPUT] = true,
-}
-
-Constants.ENTITIES_WITH_CONNECTORS = {
-    [Constants.SERVER_NAME] = true,
-    [Constants.UNDERGROUND_CABLE_NAME] = true,
-    [Constants.TERMINAL_NAME] = true,
-    [Constants.BUFFER_CHEST_NAME] = true,
-    [Constants.FLUID_INPUT] = true,
-    [Constants.FLUID_OUTPUT] = true,
-}
-
-Constants.ENTITIES_WITH_POWER_POLES = {
-    [Constants.CABLE_NAME] = true,
     [Constants.CONNECTOR_NAME] = true,
+    [Constants.SERVER_NAME] = true,
+    [Constants.TERMINAL_NAME] = true,
+    [Constants.BUFFER_CHEST_NAME] = true,
+    [Constants.FLUID_INPUT] = true,
+    [Constants.FLUID_OUTPUT] = true,
+    [Constants.PRODUCTION_COMBINATOR_NAME] = true,
 }
 
 Constants.CABLE_ENTITIES = {
     [Constants.CABLE_NAME] = true,
-    [Constants.UNDERGROUND_CABLE_NAME] = true,
+    [Constants.CONNECTOR_NAME] = true,
+}
+
+Constants.SUPPORTED_ENTITY_TYPES = {
+    Gridorius.Dictionary:new(Constants.MACHINE_TYPES):KeysUnpack(),
+    Gridorius.Dictionary:new(Constants.TURRET_TYPES):KeysUnpack(),
+    Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):KeysUnpack(),
+}
+
+Constants.SUPPORTED_ENTITY_NAMES = {
+    Constants.SERVER_NAME,
+    Constants.TERMINAL_NAME,
+    Constants.BUFFER_CHEST_NAME,
+    Constants.FLUID_INPUT,
+    Constants.FLUID_OUTPUT,
+    Constants.PRODUCTION_COMBINATOR_NAME,
 }
 
 return Constants

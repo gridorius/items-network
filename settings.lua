@@ -26,5 +26,12 @@ data:extend({
         setting_type = "runtime-global",
         default_value = true,
         order = "d"
+    },
+     {
+        type = "bool-setting",
+        name = "use_energy",
+        setting_type = "runtime-global",
+        default_value = true,
+        order = "e"
     }
 })

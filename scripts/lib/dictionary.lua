@@ -70,6 +70,10 @@ function Dictionary:Keys()
     return result
 end
 
+function Dictionary:KeysUnpack()
+   return table.unpack(self:Keys())
+end
+
 function Dictionary:Values()
     local result = {}
     for _, value in pairs(self.items) do

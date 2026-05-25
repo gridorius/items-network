@@ -35,6 +35,10 @@ function TerminalGui.render_fuels(player, table)
 					type = 'fuel',
 					fuel_name = fuel_name,
 				},
+				elem_tooltip = {
+					name = fuel_name,
+					type = 'item',
+				},
 				toggle_mode = true,
 				toggled = use,
 			}):AfterCreate(function(element)
@@ -78,6 +82,10 @@ function TerminalGui.render_ammo(player, ammo_table)
 				ammo_name = ammo_name,
 			},
 			toggle_mode = true,
+			elem_tooltip = {
+				name = ammo_name,
+				type = 'item',
+			},
 			toggled = use,
 		}):AfterCreate(function(element)
 			element.style.size = 40
@@ -124,7 +132,9 @@ function TerminalGui.render_quality_pack(network, player, current_group_items, q
 	for _, subgroup_items in pairs(current_group_items) do
 		local cell_index = 0
 		for _, item in pairs(subgroup_items) do
-			if network.inventory.items[item.name] and network.inventory.items[item.name][quality] ~= nil then
+			if network.inventory.items[item.name] and network.inventory.items[item.name][quality] ~= nil
+				and network.inventory.items[item.name][quality] > 0
+			then
 				cell_index = cell_index + 1
 				Gui:CreateSpriteButton(item.name .. ":" .. quality, "item/" .. item.name, {
 					tags = {
@@ -159,6 +169,8 @@ function TerminalGui.render_fluids(network, fluids, player, table)
 			for temperature, amount in pairs(network.inventory.fluids[fluid_name]) do
 				if temperature ~= "default_temperature" then
 					local caption = temperature == "default" and "" or "[color=white]" .. temperature .. "°C[/color]"
+					local tooltip = temperature == "default" and { "fluid-name." .. fluid_name } or
+						{ "", { "fluid-name." .. fluid_name }, " " .. temperature .. "°C" }
 					Gui:CreateSpriteButton(fluid_name .. ":" .. temperature, "fluid/" .. fluid_name, {
 						tags = {
 							type = 'fluid',
@@ -167,7 +179,7 @@ function TerminalGui.render_fluids(network, fluids, player, table)
 						},
 						number = amount,
 						caption = caption,
-						tooltip = { "", { "fluid-name." .. fluid_name }, temperature .. "°C" },
+						tooltip = tooltip,
 						style = "slot_button",
 					})
 						:AfterCreate(function(element)
@@ -181,6 +193,7 @@ end
 
 function TerminalGui.render_group_data(player, data_table)
 	data_table.clear()
+	local search_text = Gridorius.state:get_player(player.index, "search_text")
 	local current_network = Gridorius.state:get_player(player.index, "network")
 	if not current_network then return end
 	local items = prototypes.item;
@@ -189,6 +202,16 @@ function TerminalGui.render_group_data(player, data_table)
 	local current_group = Gridorius.state:get_player(player.index, "current_group")
 
 	if (current_group == "fluids") then
+		if search_text and search_text ~= "" then
+			fluids = {}
+			for name, fluid in pairs(prototypes.fluid) do
+				local localised_name = storage.translation[fluid.name] or fluid.name
+				if fluid.name:find(search_text) or localised_name:find(search_text) then
+					fluids[name] = fluid
+				end
+			end
+		end
+
 		TerminalGui.render_fluids(current_network, fluids, player, data_table)
 		return
 	end
@@ -196,10 +219,14 @@ function TerminalGui.render_group_data(player, data_table)
 	local current_group_items = {}
 	for name, item in pairs(items) do
 		if item.group.name == current_group then
+			if search_text and search_text ~= "" and not string.find(storage.translation[item.name] or item.name, search_text) then
+				goto continue
+			end
 			if not current_group_items[item.subgroup.name] then
 				current_group_items[item.subgroup.name] = {}
 			end
 			table.insert(current_group_items[item.subgroup.name], item)
+			::continue::
 		end
 	end
 
@@ -229,12 +256,12 @@ function TerminalGui.render_machines(player, table)
 	local entity_summary = {}
 	for _, entity_data in pairs(current_network.entities) do
 		local entity = entity_data.entity
-		if entity.valid then
+		if entity.valid and prototypes.item[entity.name] then
 			if not entity_summary[entity.name] then
 				entity_summary[entity.name] = {
 					sprite = "item/" .. entity.name,
 					name = entity.name,
-					number = 1
+					number = 1,
 				}
 			else
 				entity_summary[entity.name].number = entity_summary[entity.name].number + 1
@@ -244,7 +271,11 @@ function TerminalGui.render_machines(player, table)
 
 	for _, sum in pairs(entity_summary) do
 		Gui:CreateSpriteButton(sum.name, sum.sprite, {
-			number = sum.number
+			number = sum.number,
+			elem_tooltip = {
+				name = sum.name,
+				type = 'item',
+			},
 		}):RenderElement(player, table)
 	end
 end
@@ -263,7 +294,7 @@ function TerminalGui.render_fluid_selector(network, player, table)
 				local is_default = temperature == "default"
 				local tooltip = { "fluid-name." .. fluid_name }
 				if not is_default then
-					tooltip = { "", tooltip, temperature .. "°C" }
+					tooltip = { "", tooltip, " " .. temperature .. "°C" }
 					name = name .. ":" .. temperature
 				end
 				Gui:CreateSpriteButton(name, "fluid/" .. fluid_name, {
@@ -288,17 +319,59 @@ function TerminalGui.render_fluid_selector(network, player, table)
 	end
 end
 
-Gui:OnTaggedClick(function(tags, event)
-	local player = game.get_player(event.player_index)
-	local current_network = Gridorius.state:get_player(event.player_index, "network")
+Gridorius.Events:OnClick(function(event)
 	local element = event.element
+	if element and element.valid then
+		if element.name == 'add_production_item' then
+			local production_scroll = element.parent.production_scroll
+			local current_production_combinator = Gridorius.state:get_player(event.player_index,
+				"current_production_combinator")
+			if not current_production_combinator then return end
+			local settings = Gridorius.GetMetadata(current_production_combinator, {
+				production = {}
+			})
+			if not settings then return end
+			table.insert(settings.production, {
+				item = nil,
+				quality = nil,
+				limit = 10,
+			})
+			TerminalGui.RenderProductionScroll(game.get_player(event.player_index), production_scroll)
+		end
+
+		local network = Gridorius.state:get_player(event.player_index, "network")
+		if not network then return end
+	end
+end)
+
+Gridorius.Events:OnTaggedClick(function(tags, event)
+	local player = game.get_player(event.player_index)
+	local element = event.element
+
+	if tags.type == 'delete_production_item' then
+		local combinator = Gridorius.state:get_player(event.player_index, "current_production_combinator")
+		local combinator_settings = Gridorius.GetMetadata(combinator, {
+			production = {}
+		})
+		if not combinator or not combinator_settings then return end
+
+		local index = tags.index
+		local parent_flow = element.parent
+		local scroll = parent_flow.parent
+		local line = scroll.children[parent_flow.get_index_in_parent() + 1]
+		parent_flow.destroy()
+		line.destroy()
+		combinator_settings.production[index] = nil
+	end
+
+	local current_network = Gridorius.state:get_player(event.player_index, "network")
 	if not current_network or not player then return end
 
 	if tags.type == "item_group" then
 		Gridorius.state:set_player(player.index, "current_group", tags.group_name)
-		local group_table = player.gui.screen.terminal_frame.content.left.group_table
+		local group_table = player.gui.screen.terminal_frame.content.center.group_table
 		TerminalGui.render_groups(player, group_table)
-		local items_table = player.gui.screen.terminal_frame.content.left.items_scroll.items_table
+		local items_table = player.gui.screen.terminal_frame.content.center.items_scroll.items_table
 		TerminalGui.render_group_data(player, items_table)
 	elseif tags.type == "fuel" then
 		local use_fuels = current_network.storage.use_fuels
@@ -322,7 +395,8 @@ Gui:OnTaggedClick(function(tags, event)
 
 		if current_network.inventory:GetItemCount(item_name, quality) > 0 then
 			current_network.inventory:MoveToInventory({ name = item_name, quality = quality }, count, player)
-			TerminalGui.render_group_data(player, player.gui.screen.terminal_frame.content.left.items_scroll.items_table)
+			TerminalGui.render_group_data(player,
+				player.gui.screen.terminal_frame.content.center.items_scroll.items_table)
 		end
 	elseif tags.type == "select_pipe_fluid" then
 		local current_pipe = Gridorius.state:get_player(player.index, "current_pipe")
@@ -339,8 +413,126 @@ Gui:OnTaggedClick(function(tags, event)
 		storage.network_entities[current_pipe.unit_number].temperature = temperature
 		local pipe_table = player.gui.screen.fluid_output_frame.fluids_table
 		TerminalGui.render_fluid_selector(current_network, player, pipe_table)
+	elseif tags.type == 'delete_limit_item' then
+		local index = tags.index
+		local parent_flow = element.parent
+		local scroll = parent_flow.parent
+		local line = scroll.children[parent_flow.get_index_in_parent() + 1]
+		parent_flow.destroy()
+		line.destroy()
+		current_network.storage.item_limits[index] = nil
 	end
 end)
+
+function TerminalGui.CreateCell(chose_type, item_production, index)
+	local elem_value = nil
+	if item_production.item then
+		if chose_type == "item-with-quality" then
+			elem_value = {
+				name = item_production.item,
+				quality = item_production.quality
+			}
+		else
+			elem_value = item_production.item
+		end
+	end
+
+	return Gui:CreateFlow("flow_production_" .. index)
+		:AppendChildrens(
+			Gui:CreateChoseElemButton('select_production_' .. index, chose_type, {
+				tags = {
+					type = 'select_production_item',
+					index = index,
+				},
+			})
+			:AfterCreate(function(button)
+				button.elem_value = elem_value
+			end),
+			Gui:CreateTextField('text_field_' .. index, 200, {
+				numeric = true,
+				allow_negative = false,
+				allow_decimal = false,
+				tags = {
+					type = 'value_production_item',
+					index = index,
+				},
+			})
+			:AfterCreate(function(text_field)
+				text_field.style.height = 40
+				text_field.style.width = 150
+				text_field.text = tostring(item_production.limit)
+			end),
+			Gui:CreateSpriteButton('delete_production_' .. index, 'utility/trash', {
+				style = "red_button",
+				tags = {
+					type = 'delete_production_item',
+					index = index,
+				},
+			})
+			:AfterCreate(function(button)
+				button.style.size = 40
+			end)
+		)
+end
+
+function TerminalGui.CreateProductionRow(item_production, index)
+	local chose_type = "item";
+	if prototypes.quality then
+		chose_type = "item-with-quality"
+	end
+	return
+		TerminalGui.CreateCell(chose_type, item_production, index),
+		Gui:CreateLine()
+end
+
+function TerminalGui.RenderItemLimitsScroll(player, scroll, search)
+	scroll.clear()
+	local network = Gridorius.state:get_player(player.index, "network")
+	if not network then return end
+
+	if not search or search == "" then
+		for i, item_limit in pairs(network.storage.item_limits) do
+			local flow, line = TerminalGui.CreateLimitRow(item_limit, i)
+			Gui:RenderElements(player, scroll, flow, line)
+		end
+	else
+		for i, item_limit in pairs(network.storage.item_limits) do
+			if item_limit.item and prototypes.item[item_limit.item] then
+				local localised_name = storage.translation[item_limit.item] or item_limit.item
+				if item_limit.item:find(search) or localised_name:find(search) then
+					local flow, line = TerminalGui.CreateLimitRow(item_limit, i)
+					Gui:RenderElements(player, scroll, flow, line)
+				end
+			end
+		end
+	end
+end
+
+function TerminalGui.RenderProductionScroll(player, scroll, search)
+	scroll.clear()
+	local combinator = Gridorius.state:get_player(player.index, "current_production_combinator")
+	local combinator_settings = Gridorius.GetMetadata(combinator, {
+		production = {}
+	})
+	if not combinator or not combinator_settings then return end
+
+	if not search or search == "" then
+		for i, item_production in pairs(combinator_settings.production) do
+			local flow, line = TerminalGui.CreateProductionRow(item_production, i)
+			Gui:RenderElements(player, scroll, flow, line)
+		end
+	else
+		for i, item_production in pairs(combinator_settings.production) do
+			if item_production.item and prototypes.item[item_production.item] then
+				local localised_name = storage.translation[item_production.item] or item_production.item
+				if item_production.item:find(search) or localised_name:find(search) then
+					local flow, line = TerminalGui.CreateProductionRow(item_production, i)
+					Gui:RenderElements(player, scroll, flow, line)
+				end
+			end
+		end
+	end
+end
 
 function TerminalGui.BindInterfaces()
 	local network_system = Gridorius.state:get("network_system")
@@ -349,7 +541,6 @@ function TerminalGui.BindInterfaces()
 			if settings.global.fill_turret_ammo.value then
 				Gui:RenderElements(
 					player, flow,
-
 					Gui:CreateLabel({ "gui.items-network-use-ammo" }),
 					Gui:CreateTable("ammo_table", 10)
 					:SetClasses("spacing_5")
@@ -363,6 +554,11 @@ function TerminalGui.BindInterfaces()
 			Gui:CreateLabel(function(player)
 				local network = Gridorius.state:get_player(player.index, "network")
 				return { "gui.items-network-terminal-network-value", network.id }
+			end),
+			Gui:CreateLabel(function(player)
+				local network = Gridorius.state:get_player(player.index, "network")
+				return "Состояние: " ..
+				(network.working and "[color=green]Работает[/color]" or "[color=red]недостаточно энергии[/color]")
 			end),
 			Gui:CreateLabel(function(player)
 				local network = Gridorius.state:get_player(player.index, "network")
@@ -383,14 +579,67 @@ function TerminalGui.BindInterfaces()
 		)
 
 
+	local production_combinator_interface = Gui:CreateDefaultFrame("production_combinator_frame",
+			{ "gui.items-network-production-window-title" })
+		:AppendChild(
+			Gui:CreateFlow("production_combinator_content", 'vertical')
+			:AppendChildrens(
+				Gui:CreateLabel({ "gui.items-network-production-settings" }),
+				Gui:CreateButton("add_production_item", { "gui.items-network-add" }),
+				Gui:CreateTextField("search_production_item", "", {
+					placeholder = { "gui.items-network-search-by-name" },
+				}):AfterCreate(function(text_field)
+					text_field.style.width = 250
+				end),
+				Gui:CreateScroll("production_scroll")
+				:AfterCreate(function(scroll, player)
+					scroll.style.height = 550
+					scroll.style.width = 300
+					TerminalGui.RenderProductionScroll(player, scroll)
+				end)
+
+			)
+		)
+
 	local terminal_interface = Gui:CreateDefaultFrame("terminal_frame", { "gui.items-network-terminal-title" })
 		:AppendChild(
 			Gui:CreateFlow("content")
 			:AppendChildrens(
-				Gui:CreateFrame("left", {
+			-- Gui:CreateFlow("left", "vertical")
+			-- :AppendChildrens(
+			-- 	Gui:CreateTabPane("action_tabs", {
+			-- 		{
+			-- 			name = "limits",
+			-- 			title = "Ограничения сети",
+			-- 			render = function(content, player)
+			-- 				Gui:CreateButton("add_item_limit_button", "Добавить")
+			-- 					:RenderElement(player, content)
+			-- 				Gui:CreateTextField("search_limit", "", {
+			-- 					placeholder = "Поиск по названию",
+			-- 				}):AfterCreate(function(text_field)
+			-- 					text_field.style.width = 250
+			-- 				end):RenderElement(player, content)
+			-- 				local scroll = Gui:CreateScroll("limits_scroll")
+			-- 					:AfterCreate(function(scroll)
+			-- 						scroll.style.height = 550
+			-- 						scroll.style.width = 300
+			-- 						TerminalGui.RenderItemLimitsScroll(player, scroll)
+			-- 					end)
+
+			-- 				scroll:RenderRoot(player, content)
+			-- 			end
+			-- 		}
+			-- 	})
+			-- ),
+				Gui:CreateFrame("center", {
 					style = "entity_frame",
 				})
 				:AppendChildrens(
+					Gui:CreateTextField("search_item", "", {
+						placeholder = { "gui.items-network-search-by-name" },
+					}):AfterCreate(function(text_field)
+						text_field.style.width = 250
+					end),
 					Gui:CreateTable("group_table", 6, {
 						style = "editor_mode_selection_table"
 					})
@@ -427,7 +676,9 @@ function TerminalGui.BindInterfaces()
 			end)
 		)
 
-
+	terminal_interface:OnClose(function(player)
+		Gridorius.state:set_player(player.index, "search_text", nil)
+	end)
 	Gui:BindInterface("network-terminal", terminal_interface, function(player, entity)
 		local network = network_system:GetNetworkByEntity(entity)
 		if network then
@@ -437,6 +688,10 @@ function TerminalGui.BindInterfaces()
 		return nil
 	end, true)
 
+	Gui:BindInterface("network-production-combinator", production_combinator_interface, function(player, entity)
+		Gridorius.state:set_player(player.index, "current_production_combinator", entity)
+		return player.gui.screen
+	end, true)
 
 	Gui:BindInterface("network-fluid-output", pipe_interface, function(player, entity)
 		local network = network_system:GetNetworkByEntity(entity)
@@ -448,11 +703,83 @@ function TerminalGui.BindInterfaces()
 		return nil
 	end, true)
 
-	Gui:OnNthTick(60, function()
+	Gridorius.Events:On(defines.events.on_gui_elem_changed, function(event)
+		local element = event.element
+		local tags = element.tags
+
+		if tags then
+			if tags.type == 'select_production_item' then
+				local combinator = Gridorius.state:get_player(event.player_index, "current_production_combinator")
+				local combinator_settings = Gridorius.GetMetadata(combinator, {
+					production = {}
+				})
+				if not combinator or not combinator_settings then return end
+				local value = element.elem_value
+				if type(value) == "table" then
+					combinator_settings.production[tags.index].item = value.name
+					combinator_settings.production[tags.index].quality = value.quality
+				else
+					combinator_settings.production[tags.index].item = value
+				end
+			end
+
+			local network = Gridorius.state:get_player(event.player_index, "network")
+			if not network then return end
+
+			if tags.type == "select_limit_item" then
+				local value = element.elem_value
+				if type(value) == "table" then
+					network.storage.item_limits[tags.index].item = value.name
+					network.storage.item_limits[tags.index].quality = value.quality
+				else
+					network.storage.item_limits[tags.index].item = value
+				end
+			end
+		end
+	end)
+
+	Gridorius.Events:On(defines.events.on_gui_text_changed, function(event)
+		local element = event.element
+		local tags = element.tags
+
+		if element.name == "search_limit" then
+			local scroll = element.parent.limits_scroll
+			TerminalGui.RenderItemLimitsScroll(game.get_player(event.player_index), scroll, element.text)
+		elseif element.name == "search_item" then
+			local items_table = element.parent.items_scroll.items_table
+			Gridorius.state:set_player(event.player_index, "search_text", element.text)
+			TerminalGui.render_group_data(game.get_player(event.player_index), items_table)
+		elseif element.name == "search_production_item" then
+			local scroll = element.parent.production_scroll
+			TerminalGui.RenderProductionScroll(game.get_player(event.player_index), scroll, element.text)
+		end
+
+		if tags then
+			if tags.type == "value_production_item" then
+				local combinator = Gridorius.state:get_player(event.player_index, "current_production_combinator")
+				local combinator_settings = Gridorius.GetMetadata(combinator, {
+					production = {}
+				})
+				if not combinator or not combinator_settings then return end
+				local value = element.text
+				combinator_settings.production[tags.index].limit = tonumber(value) or 0
+			end
+
+			local network = Gridorius.state:get_player(event.player_index, "network")
+			if not network then return end
+
+			if tags.type == "value_limit_item" then
+				local value = element.text
+				network.storage.item_limits[tags.index].limit = tonumber(value) or 0
+			end
+		end
+	end)
+
+	Gridorius.Events:OnNthTick(60, function()
 		for _, player in pairs(game.connected_players) do
 			local network = Gridorius.state:get_player(player.index, "network")
 			if network and player.gui.screen.terminal_frame then
-				local data_table = player.gui.screen.terminal_frame.content.left.items_scroll.items_table
+				local data_table = player.gui.screen.terminal_frame.content.center.items_scroll.items_table
 				local machines_table = player.gui.screen.terminal_frame.content.right.machines_table
 				if data_table and data_table.valid then
 					TerminalGui.render_group_data(player, data_table)

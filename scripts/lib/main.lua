@@ -41,6 +41,47 @@ Gridorius.insert_fluid = function(fluidbox, fluid, index, max_insert)
     return 0
 end
 
+function Gridorius.SetMetadata(entity, metadata)
+    storage.metadata = storage.metadata or {}
+    if entity and entity.valid then
+        storage.metadata[entity.unit_number] = metadata
+    end
+end
+
+function Gridorius.AddMetadata(entity, metadata)
+    storage.metadata = storage.metadata or {}
+    if entity and entity.valid then
+        storage.metadata[entity.unit_number] = storage.metadata[entity.unit_number] or {}
+        for key, value in pairs(metadata) do
+            storage.metadata[entity.unit_number][key] = value
+        end
+    end
+end
+
+function Gridorius.GetMetadata(entity, default)
+    if entity and entity.valid and storage.metadata then
+        if not storage.metadata[entity.unit_number] and default then
+           storage.metadata[entity.unit_number] = default
+        end
+        return storage.metadata[entity.unit_number]
+    end
+    return nil
+end
+
+
+function Gridorius.FixMetadata()
+    if storage.metadata then
+        local valid_metadata = {}
+        for unit_number, metadata in pairs(storage.metadata) do
+            local entity = game.get_entity_by_unit_number(unit_number)
+            if entity and entity.valid then
+                valid_metadata[unit_number] = metadata
+            end
+        end
+        storage.metadata = valid_metadata
+    end
+end
+
 local IngameState = require("scripts.lib.ingame_state")
 Gridorius.state = IngameState:new()
 
@@ -50,5 +91,18 @@ Gridorius.VirtualInventory = VirtualInventory
 local InterfaceBuilder = require("scripts.lib.interface_builder")
 Gridorius.InterfaceBuilder = InterfaceBuilder
 
+local CombinedInventory = require("scripts.lib.combined_inventory")
+Gridorius.CombinedInventory = CombinedInventory
+
 local Gui = require("scripts.lib.gui")
-Gridorius.Gui = Gui:new()
+function Gridorius:InitGui()
+    self.Gui = Gui:new()
+end
+
+function Gridorius.split(str, delimiter)
+    local result = {}
+    for match in (str .. delimiter):gmatch("(.-)" .. delimiter) do
+        table.insert(result, match)
+    end
+    return result
+end

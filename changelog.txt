@@ -1,4 +1,24 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.9.0
+Date: 25.05.2026
+  Features:
+    - added a separate connector entity placed under network elements
+    - added production combinator
+    - added support for asteroid-collector
+    - the network now consumes electricity depending on the number of cables and their depth from the main node (server)
+    - added power consumption on/off setting
+  Changes:
+    - added search for items in the terminal
+    - added tooltips to the network entities section
+    - added tooltips to the fuel section of the network
+    - added tooltips to the ammunition section of the network
+    - items are no longer displayed in the terminal if they are not online
+    - recipes changed
+    - the server is now destructible, when destroyed, items are placed in a special chest, liquids are lost
+    - underground cable removed
+  Bugfixes:
+    - fixed display of liquids on the network with default temperature and added spaces
+---------------------------------------------------------------------------------------------------
 Version: 1.5.0
 Date: 18.05.2026
   Changes:

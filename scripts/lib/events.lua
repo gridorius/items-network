@@ -9,21 +9,36 @@ function Events:new()
     return self
 end
 
-function Events:on_event(name, event, handler_id)
-    if self.handlers[name] then
-        for id, handler_data in pairs(self.handlers[name]) do
-            handler_data.handler(event, handler_id)
+function Events:UseEvents(...)
+    local event_names = { ... }
+    for _, event_name in pairs(event_names) do
+        script.on_event(event_name, function(event) self:on_event(event_name, event) end)
+    end
+end
+
+function Events:UseTick(...)
+    local tick_intervals = { ... }
+    for _, tick in pairs(tick_intervals) do
+        script.on_nth_tick(tick, function(event) self:on_nth_tick_event(tick, event) end)
+        self.nth_tick_handlers[tick] = {}
+    end
+end
+
+function Events:on_event(name, event)
+    for handler_id, handler_data in pairs(self.handlers) do
+        if handler_data.events[name] then
+            handler_data.events[name](event, handler_id)
             if handler_data.single then
-                self.handlers[name][id] = nil
+                self.handlers[handler_id] = nil
             end
         end
     end
 end
 
-function Events:on_nth_tick_event(tick, event, handler_id)
+function Events:on_nth_tick_event(tick, event)
     if self.nth_tick_handlers[tick] then
         for id, handler_data in pairs(self.nth_tick_handlers[tick]) do
-            handler_data.handler(event, handler_id)
+            handler_data.handler(event, id)
             if handler_data.single then
                 self.nth_tick_handlers[tick][id] = nil
             end
@@ -31,16 +46,37 @@ function Events:on_nth_tick_event(tick, event, handler_id)
     end
 end
 
-function Events:OnNthTick(tick, handler)
+function Events:OnClick(handler)
     local handler_id = self:GetHandlerId()
+    local event_name = defines.events.on_gui_click
+    self:On(event_name, handler)
+    return handler_id
+end
+
+function Events:OnTaggedClick(handler)
+    local handler_id = self:GetHandlerId()
+    local event_name = defines.events.on_gui_click
+    self:On(event_name, function(event)
+        if not event.element or not event.element.valid then return end
+        local tags = event.element.tags
+        if tags then
+            handler(tags, event)
+        end
+    end)
+    return handler_id
+end
+
+function Events:OnNthTick(tick, handler)
     if not self.nth_tick_handlers[tick] then
-        self.nth_tick_handlers[tick] = {}
-        script.on_nth_tick(tick, function(event) self:on_nth_tick_event(tick, event, handler_id) end)
+        return nil
     end
+
+    local handler_id = self:GetHandlerId()
     self.nth_tick_handlers[tick][handler_id] = {
         handler = handler,
         single = false
     }
+    return handler_id
 end
 
 function Events:GetHandlerId()
@@ -51,15 +87,21 @@ end
 
 function Events:On(event_name, handler, single)
     local handler_id = self:GetHandlerId()
-    if not self.handlers[event_name] then
-        self.handlers[event_name] = {}
-        script.on_event(event_name, function(event) self:on_event(event_name, event, handler_id) end)
+    self.handlers[handler_id] = {
+        events = {},
+        single = single or false,
+    }
+
+    if type(event_name) == "table" then
+        for _, name in pairs(event_name) do
+            self.handlers[handler_id].events[name] = handler
+        end
+        return handler_id
+    else
+        self.handlers[handler_id].events[event_name] = handler
     end
 
-    self.handlers[event_name][handler_id] = {
-        handler = handler,
-        single = single or false
-    }
+    return handler_id
 end
 
 function Events:Remove(event, id)

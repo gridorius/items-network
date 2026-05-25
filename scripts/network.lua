@@ -9,9 +9,13 @@ function Network:new(network_id)
     self.entities = self.storage.entities
     self.inventory = Gridorius.VirtualInventory:new(network_id)
     self.signals = {}
-
+    self.combined_inventory = Gridorius.CombinedInventory:new()
+    self.limits = {}
     self.storage.distribute_index = self.storage.distribute_index or 1
     self.storage.distribute_current = self.storage.distribute_current or settings.global.network_machines_per_tick.value
+    self.storage.use_energy = settings.global.use_energy.value
+    self.power_usage = 50
+    self.working = true
 
     return self
 end
@@ -28,7 +32,9 @@ function Network:InitStorage(network_id)
             typed_entities = {},
             use_fuels = {},
             use_ammo = {},
+            item_limits = {},
             server = nil,
+            inventories = {}
         }
     else
         storage.networks[network_id].typed_entities = storage.networks[network_id].typed_entities or {}
@@ -36,11 +42,34 @@ function Network:InitStorage(network_id)
         storage.networks[network_id].entities = storage.networks[network_id].entities or {}
         storage.networks[network_id].use_fuels = storage.networks[network_id].use_fuels or {}
         storage.networks[network_id].use_ammo = storage.networks[network_id].use_ammo or {}
+        storage.networks[network_id].item_limits = storage.networks[network_id].item_limits or {}
+        storage.networks[network_id].inventories = storage.networks[network_id].inventories or {}
     end
 end
 
 function Network:UpdateSignals()
     self.signals = self.inventory:BuildSignals()
+end
+
+function Network:CreateItemLimit()
+    local new_limit = {
+        item = nil,
+        quality = "normal",
+        limit = 10
+    }
+    table.insert(self.storage.item_limits, new_limit)
+    return new_limit, #self.storage.item_limits
+end
+
+function Network:BuilLimits()
+    local limits = {}
+    for _, limit in pairs(self.storage.item_limits) do
+        if not limits[limit.item] then
+            limits[limit.item] = {}
+        end
+        limits[limit.item][limit.quality] = limit.limit
+    end
+    self.limits = limits
 end
 
 function Network:SetTerminalsSignals()
@@ -100,7 +129,11 @@ function Network:ResetEntities()
     self.storage.typed_entities = {}
     self.storage.distribute_index = 1
     self.storage.distribute_current = settings.global.network_machines_per_tick.value
+    self.storage.use_energy = settings.global.use_energy.value
+    self.storage.inventories = {}
     self.entities = self.storage.entities
+    self.combined_inventory:Reset()
+    self.power_usage = 50
 end
 
 function Network:ResolveEntityType(entity)
@@ -134,6 +167,18 @@ function Network:GetDistributeIndex()
     return index
 end
 
+function Network:CalculateUsage(depth)
+    if depth <= 40 then
+        return 50
+    elseif depth <= 80 then
+        return 200
+    elseif depth <= 120 then
+        return depth * 10
+    else
+        return depth * 100
+    end
+end
+
 function Network:AttachEntity(entity)
     if not entity or not entity.valid then
         return
@@ -149,6 +194,10 @@ function Network:AttachEntity(entity)
         return
     end
 
+    if type == Constants.TYPE.SERVER then
+        self.storage.server = entity
+    end
+
     self.storage.typed_entities[type] = self.storage.typed_entities[type] or {}
 
     if storage.network_entities[entity.unit_number] then
@@ -162,6 +211,16 @@ function Network:AttachEntity(entity)
     end
 
     self.storage.typed_entities[type][entity.unit_number] = self.entities[entity.unit_number]
+
+    if Constants.CABLE_ENTITIES[entity.name] then
+        local depth = Gridorius.GetMetadata(entity).depth or 0
+        self.power_usage = self.power_usage + self:CalculateUsage(depth)
+    end
+
+    if Constants.ABSORBABLE_CHEST_TYPES[entity.type] then
+        self.storage.inventories[entity.unit_number] = entity.get_inventory(defines.inventory.chest)
+        self.combined_inventory:AddInventory(self.storage.inventories[entity.unit_number])
+    end
 
     if Constants.DISTRIBUTABLE_TYPES[self.entities[entity.unit_number].type] then
         self.entities[entity.unit_number].distribute_index = self:GetDistributeIndex()
@@ -182,28 +241,74 @@ function Network:ProcessPlayers(server)
 end
 
 function Network:OnTick()
+    if not self.storage.server or not self.storage.server.valid then
+        return
+    end
+    local interface = storage.servers[self.storage.server.unit_number].energy_interface
+    if interface.energy == 0 then
+        self.working = false
+        return
+    end
+    self.working = true
+
     if Gridorius.nth_tick(60) then
         self:UpdateSignals()
         self:SetTerminalsSignals()
-        local servers = self:GetTypeEntities(Constants.TYPE.SERVER)
-        for _, server in pairs(servers) do
-            if (server and server.valid) then
-                server.minable = self.inventory:IsEmpty()
-                self:ProcessPlayers(server)
+        self:ProcessTurrets()
+        self:ProcessProductionCombinators()
+        if interface and interface.valid then
+            if self.storage.use_energy then
+                interface.electric_buffer_size = self.power_usage
+                interface.power_usage = self.power_usage
             else
-                self:Destroy()
-                self:ResetEntities()
+                interface.electric_buffer_size = 0
+                interface.power_usage = 0
             end
         end
-        self:ProcessTurrets()
+    end
+
+    if Gridorius.nth_tick(10) then
+        self:ProcessProductionCombinators()
     end
 
     local distribute_index = game.tick % (self.storage.distribute_index + 1)
     self:CollectChests(distribute_index)
     self:CollectFluidInputs(distribute_index)
     self:FillFluidOutputs(distribute_index)
-    self:ProcessMachines(distribute_index)
+    self:ProcessMachinesItems(distribute_index)
+    self:ProcessMachinesFluids(distribute_index)
     self:ProcessBufferChests(distribute_index)
+end
+
+function Network:ProcessProductionCombinators()
+    local combinators = self:GetTypeEntities(Constants.TYPE.PRODUCTION_COMBINATOR)
+    for _, combinator in pairs(combinators) do
+        if combinator and combinator.valid then
+            local control = combinator.get_or_create_control_behavior()
+            local signals = {}
+            local production = Gridorius.GetMetadata(combinator, {
+                production = {}
+            }).production
+
+            for _, prod in pairs(production) do
+                if prod.item then
+                    local quality = prod.quality or "normal"
+                    local inventory_amount = self.inventory:GetItemCount(prod.item, quality)
+                    if inventory_amount < prod.limit then
+                        table.insert(signals, {
+                            value = {
+                                type = "item",
+                                name = prod.item,
+                                quality = quality
+                            },
+                            min = prod.limit - inventory_amount,
+                        })
+                    end
+                end
+            end
+            control.get_section(1).filters = signals
+        end
+    end
 end
 
 function Network:ProcessTurrets()
@@ -217,17 +322,27 @@ function Network:ProcessTurrets()
                 inventory = turret.get_inventory(defines.inventory.artillery_turret_ammo)
             end
             if inventory then
+                -- self.combined_inventory:ProcessTurret(inventory, self.storage.use_ammo)
                 self.inventory:ProcessTurret(inventory, self.storage.use_ammo)
             end
         end
     end
 end
 
-function Network:ProcessMachines(distribute_index)
+function Network:ProcessMachinesItems(distribute_index)
     local machines = self:GetTypeEntities(Constants.TYPE.MACHINE, distribute_index)
 
     for _, machine in pairs(machines) do
-        self.inventory:ProcessMachine(machine, self.storage.use_fuels)
+        -- self.combined_inventory:ProcessMachineItems(machine, self.storage.use_fuels)
+        self.inventory:ProcessMachineItems(machine, self.storage.use_fuels)
+    end
+end
+
+function Network:ProcessMachinesFluids(distribute_index)
+    local machines = self:GetTypeEntities(Constants.TYPE.MACHINE, distribute_index)
+
+    for _, machine in pairs(machines) do
+        self.inventory:ProcessMachineFluids(machine)
     end
 end
 

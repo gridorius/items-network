@@ -320,7 +320,7 @@ function VirtualInventory:ProcessTurret(inventory, use_ammo)
     end
 
     local current_count = inventory.get_item_count()
-    if current_count > 10 then
+    if current_count >= 10 then
         return
     end
 
@@ -334,7 +334,62 @@ function VirtualInventory:ProcessTurret(inventory, use_ammo)
     end
 end
 
-function VirtualInventory:ProcessMachine(machine, use_fuels)
+function VirtualInventory:ProcessMachineFluids(machine)
+    if not (machine and machine.valid) then
+        return
+    end
+    local fluidbox = machine.fluidbox
+
+    if not (fluidbox and machine.valid) then
+        return
+    end
+
+    local recipe = machine.get_recipe()
+    local fluids_to_insert = {}
+
+    -- handle recipe
+    if recipe and machine.active then
+        for _, ingredient in pairs(recipe.ingredients) do
+            if ingredient.type == "fluid" and fluidbox then
+                local fluid_name = ingredient.name
+                local fluid_temperature = ingredient.temperature
+                local inventory_amount = self:GetFluidAmount(fluid_name, fluid_temperature)
+                fluids_to_insert[fluid_name] = {
+                    temperature = fluid_temperature,
+                    amount = math.min(inventory_amount, self.insert_fluid_per_operation)
+                }
+            end
+        end
+    end
+
+    local insert_index = 1
+    for name, data in pairs(fluids_to_insert) do
+        local inserted = Gridorius.insert_fluid(fluidbox,
+            { name = name, amount = data.amount, temperature = data.temperature }, insert_index, data.amount)
+        if inserted > 0 then
+            self:RemoveFluid(name, inserted, data.temperature)
+        end
+        insert_index = insert_index + 1
+    end
+
+    -- collect fluid products
+    if recipe and fluidbox then
+        for _, product in pairs(recipe.products) do
+            if product.type == "fluid" then
+                for i = 1, #fluidbox do
+                    local fluid = fluidbox[i]
+                    if fluid and fluid.name and fluid.name == product.name then
+                        local amount = fluid.amount
+                        self:InsertFluid(product.name, amount, product.temperature)
+                        fluidbox[i] = nil
+                    end
+                end
+            end
+        end
+    end
+end
+
+function VirtualInventory:ProcessMachineItems(machine, use_fuels)
     if machine and machine.valid then
         if machine.type == "lab" then
             self:ProcessLab(machine)
@@ -343,12 +398,11 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
 
         local input_inventory = machine.get_inventory(defines.inventory.crafter_input)
         local output_inventory = machine.get_inventory(defines.inventory.crafter_output)
+        local dump_inventory = machine.get_inventory(defines.inventory.assembling_machine_dump)
         local fuel_inventory = machine.get_inventory(defines.inventory.fuel)
-        local fluidbox = machine.fluidbox
         local burner = machine.burner
         local recipe, recipe_quality = machine.get_recipe()
         recipe_quality = recipe_quality and recipe_quality.name or "normal"
-        local fluids_to_insert = {}
 
         -- handle recipe
         if recipe and machine.active and input_inventory then
@@ -367,27 +421,9 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
                     end
                     self:MoveToInventory({ name = ingredient_name, quality = ingredient_quality }, max_move,
                         input_inventory)
-                elseif ingredient.type == "fluid" and fluidbox then
-                    local fluid_name = ingredient.name
-                    local fluid_temperature = ingredient.temperature
-                    local inventory_amount = self:GetFluidAmount(fluid_name, fluid_temperature)
-                    fluids_to_insert[fluid_name] = {
-                        temperature = fluid_temperature,
-                        amount = math.min(inventory_amount, self.insert_fluid_per_operation)
-                    }
                 end
                 ::next_ingriedient::
             end
-        end
-
-        local insert_index = 1
-        for name, data in pairs(fluids_to_insert) do
-            local inserted = Gridorius.insert_fluid(fluidbox,
-                { name = name, amount = data.amount, temperature = data.temperature }, insert_index, data.amount)
-            if inserted > 0 then
-                self:RemoveFluid(name, inserted, data.temperature)
-            end
-            insert_index = insert_index + 1
         end
 
         -- handle fuels
@@ -408,26 +444,13 @@ function VirtualInventory:ProcessMachine(machine, use_fuels)
             burner.burnt_result_inventory.clear()
         end
 
-
-        -- collect fluid products
-        if recipe and fluidbox then
-            for _, product in pairs(recipe.products) do
-                if product.type == "fluid" then
-                    for i = 1, #fluidbox do
-                        local fluid = fluidbox[i]
-                        if fluid and fluid.name and fluid.name == product.name then
-                            local amount = fluid.amount
-                            self:InsertFluid(product.name, amount, product.temperature)
-                            fluidbox[i] = nil
-                        end
-                    end
-                end
-            end
-        end
-
         -- collect output items
         if output_inventory and not output_inventory.is_empty() then
             self:CollectInventory(output_inventory)
+        end
+
+        if dump_inventory and not dump_inventory.is_empty() then
+            self:CollectInventory(dump_inventory)
         end
     end
 end

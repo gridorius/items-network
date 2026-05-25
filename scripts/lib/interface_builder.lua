@@ -15,21 +15,11 @@ end
 
 -- #region Element operations
 
-function InterfaceBuilder:CreateHierarhy(element, root)
-    local hierarhy = setmetatable({
-        element = element,
-        children = {},
-    }, {
-        __index = function(self, key)
-            return self.children[key]
-        end
-    })
-    if not root then
-        root = hierarhy
-        hierarhy.on_close_handlers = {}
-    end
-    hierarhy.root = root
-    return hierarhy
+function InterfaceBuilder:CreateConnector()
+    return {
+        root = nil,
+        on_close_handlers = {}
+    }
 end
 
 function InterfaceBuilder:OnClose(handler)
@@ -57,8 +47,8 @@ function InterfaceBuilder:OnClick(handler)
     return self
 end
 
-function InterfaceBuilder:RenderElement(player, parent)
-    local element = self.render_function(parent, player)
+function InterfaceBuilder:RenderElement(player, parent, connector)
+    local element = self.render_function(parent, player, connector)
     if self.after_create_handler then
         self.after_create_handler(element, player)
     end
@@ -66,43 +56,40 @@ function InterfaceBuilder:RenderElement(player, parent)
 end
 
 function InterfaceBuilder:RenderRoot(player, parent)
-    local element = self:RenderElement(player, parent)
-    local hierarhy = self:CreateHierarhy(element)
+    local connector = self:CreateConnector()
+    local element = self:RenderElement(player, parent, connector)
+    connector.root = element
     if self.on_close_handler then
-        table.insert(hierarhy.root.on_close_handlers, self.on_close_handler)
+        table.insert(connector.on_close_handlers, self.on_close_handler)
     end
     self:RenderElementData(
         element,
-        self.classes, player, hierarhy
+        self.classes, player, connector
     )
-    return hierarhy
+    return connector
 end
 
-function InterfaceBuilder:Render(player, parent, hierarhy)
-    local element = self:RenderElement(player, parent)
+function InterfaceBuilder:Render(player, parent, connector)
+    local element = self:RenderElement(player, parent, connector)
     if self.on_close_handler then
-        table.insert(hierarhy.root.on_close_handlers, self.on_close_handler)
-    end
-    local element_hierarhy = self:CreateHierarhy(element, hierarhy)
-    if self.name then
-        hierarhy.children[self.name] = element_hierarhy
+        table.insert(connector.on_close_handlers, self.on_close_handler)
     end
     self:RenderElementData(
         element,
-        self.classes, player, element_hierarhy
+        self.classes, player, connector
     )
     return element
 end
 
-function InterfaceBuilder:RenderChildren(player, parent, hierarhy)
+function InterfaceBuilder:RenderChildren(player, parent, connector)
     for _, child in pairs(self.children) do
-        child:Render(player, parent, hierarhy)
+        child:Render(player, parent, connector)
     end
 end
 
-function InterfaceBuilder:RenderElementData(element, classes, player, hierarhy)
+function InterfaceBuilder:RenderElementData(element, classes, player, connector)
     self.gui:ApplyStyles(element, classes)
-    self:RenderChildren(player, element, hierarhy)
+    self:RenderChildren(player, element, connector)
     if self.after_create_childs_handler then
         self.after_create_childs_handler(element, player)
     end

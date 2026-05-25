@@ -17,8 +17,6 @@ function Gui:new()
             bottom_padding = 8,
         },
     }
-    self.click_name_handlers = {}
-    self.click_tags_handlers = {}
     self.interface_bindings = {}
     self.delay_queue = {}
     self.nth_tick_handlers = {}
@@ -39,23 +37,9 @@ end
 
 -- #region Gui event handlers
 function Gui:on_gui_click_handler(event)
-    local handler = self.click_name_handlers[event.element.name]
-    if handler then
-        handler(event)
-    end
-    local tags = event.element.tags
-    if tags then
-        for i = 1, #self.click_tags_handlers do
-            local tag_handler = self.click_tags_handlers[i]
-            tag_handler(tags, event)
-        end
-    end
-
     if event.element and event.element.valid and event.element.name == "close_button" then
         self:CloseInterface(game.get_player(event.player_index))
     end
-
-    return self
 end
 
 function Gui:on_tick_handler(event)
@@ -65,11 +49,6 @@ function Gui:on_tick_handler(event)
             local player = game.get_player(player_index)
             self:RenderInterface(player, data.binding, data.entity)
             queue[event.tick] = nil
-        end
-    end
-    for _, handler_data in pairs(self.nth_tick_handlers) do
-        if event.tick % handler_data.tick == 0 then
-            handler_data.handler(event)
         end
     end
 end
@@ -97,24 +76,13 @@ function Gui:on_gui_closed_handler(event)
     self:CloseInterface(game.get_player(event.player_index))
     return self
 end
-
 -- #endregion
-
-function Gui:OnTaggedClick(handler)
-    table.insert(self.click_tags_handlers, handler)
-    return self
-end
-
-function Gui:OnNthTick(tick, handler)
-    table.insert(self.nth_tick_handlers, { tick = tick, handler = handler })
-    return self
-end
 
 function Gui:RenderElements(player, target, ...)
     local elements = { ... }
     for i = 1, #elements do
         local element = elements[i]
-        element:RenderElement(player, target)
+        element:RenderRoot(player, target)
     end
 end
 
@@ -126,9 +94,9 @@ function Gui:RenderInterface(player, binding, entity)
     end
     local target = binding.target(player, entity)
     if target then
-        self.current_interface = binding.interface:RenderRoot(player, target)
+        self.current_connector = binding.interface:RenderRoot(player, target)
         if binding.replace then
-            player.opened = self.current_interface.element
+            player.opened = self.current_connector.root
         end
     end
 end
@@ -145,15 +113,15 @@ end
 
 function Gui:CloseInterface(player)
     player.opened = nil
-    if self.current_interface then
-        if self.current_interface.root.on_close_handlers then
-            for i = 1, #self.current_interface.root.on_close_handlers do
-                local handler = self.current_interface.root.on_close_handlers[i]
-                handler(player, self.current_interface)
+    if self.current_connector then
+        if self.current_connector.on_close_handlers then
+            for i = 1, #self.current_connector.on_close_handlers do
+                local handler = self.current_connector.on_close_handlers[i]
+                handler(player, self.current_connector)
             end
         end
-        self.current_interface.element.destroy()
-        self.current_interface = nil
+        self.current_connector.root.destroy()
+        self.current_connector = nil
     end
 end
 
@@ -188,6 +156,56 @@ function Gui:CreateFrame(name, properties)
         return parent.add(Gridorius.MergeProperties(
             { type = "frame", name = name, direction = "vertical", draggable = true },
             properties))
+    end)
+end
+
+-- { title = "Tab 1", direction = "vertical", render = function(parent, player) ... end }
+function Gui:CreateTabPane(name, tabs, properties)
+    return Gridorius.InterfaceBuilder:new(self, name, function(parent, player)
+        local tab_pane = parent.add(Gridorius.MergeProperties({ type = "tabbed-pane", name = name }, properties))
+        for i = 1, #tabs do
+            local tab = tabs[i]
+            local tab_widget = tab_pane.add({ name = "tab_" .. i, type = "tab", caption = tab.title })
+            local tab_content = tab_pane.add({ name = "content", type = "flow", direction = tab.direction or "vertical" })
+            tab_content.style.padding = 12
+            tab_pane.add_tab(tab_widget, tab_content)
+            if tab.render then
+                tab.render(tab_content, player)
+            end
+        end
+        return tab_pane
+    end)
+end
+
+function Gui:CreateChoseElemButton(name, elem_type, properties)
+    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
+        return parent.add(Gridorius.MergeProperties({
+            type = "choose-elem-button",
+            name = name,
+            elem_type = elem_type,
+        }, properties))
+    end)
+end
+
+function Gui:CreateSlider(name, min, max, value, properties)
+    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
+        return parent.add(Gridorius.MergeProperties({
+            type = "slider",
+            name = name,
+            minimum_value = min,
+            maximum_value = max,
+            value = value,
+        }, properties))
+    end)
+end
+
+function Gui:CreateTextField(name, text, properties)
+    return Gridorius.InterfaceBuilder:new(self, name, function(parent)
+        return parent.add(Gridorius.MergeProperties({
+            type = "textfield",
+            name = name,
+            text = text,
+        }, properties))
     end)
 end
 
