@@ -102,11 +102,19 @@ Constants.CABLE_ENTITIES = {
     [Constants.CONNECTOR_NAME] = true,
 }
 
-Constants.SUPPORTED_ENTITY_TYPES = {
-    Gridorius.Dictionary:new(Constants.MACHINE_TYPES):KeysUnpack(),
-    Gridorius.Dictionary:new(Constants.TURRET_TYPES):KeysUnpack(),
-    Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):KeysUnpack(),
-}
+Constants.SUPPORTED_ENTITY_TYPES = {}
+
+ Gridorius.Dictionary:new(Constants.MACHINE_TYPES):ForEach(function(_, type)
+     table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
+ end)
+
+ Gridorius.Dictionary:new(Constants.TURRET_TYPES):ForEach(function(_, type)
+     table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
+ end)
+
+ Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):ForEach(function(_, type)
+     table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
+ end)
 
 Constants.SUPPORTED_ENTITY_NAMES = {
     Constants.SERVER_NAME,

@@ -338,6 +338,9 @@ function VirtualInventory:ProcessMachineFluids(machine)
     if not (machine and machine.valid) then
         return
     end
+    if machine.type == "lab" then
+        return
+    end
     local fluidbox = machine.fluidbox
 
     if not (fluidbox and machine.valid) then
