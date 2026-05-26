@@ -705,7 +705,7 @@ function TerminalGui.BindInterfaces()
 	terminal_interface:OnClose(function(player)
 		Gridorius.state:set_player(player.index, "search_text", nil)
 	end)
-	Gui:BindInterface("network-terminal", terminal_interface, function(player, entity)
+	Gui:BindEntityInterface("network-terminal", terminal_interface, function(player, entity)
 		local network = network_system:GetNetworkByEntity(entity)
 		if network then
 			Gridorius.state:set_player(player.index, "network", network)
@@ -714,12 +714,12 @@ function TerminalGui.BindInterfaces()
 		return nil
 	end, true)
 
-	Gui:BindInterface("network-production-combinator", production_combinator_interface, function(player, entity)
+	Gui:BindEntityInterface("network-production-combinator", production_combinator_interface, function(player, entity)
 		Gridorius.state:set_player(player.index, "current_production_combinator", entity)
 		return player.gui.screen
 	end, true)
 
-	Gui:BindInterface("network-fluid-output", pipe_interface, function(player, entity)
+	Gui:BindEntityInterface("network-fluid-output", pipe_interface, function(player, entity)
 		local network = network_system:GetNetworkByEntity(entity)
 		if network then
 			Gridorius.state:set_player(player.index, "network", network)

@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.9.6
+Date: 27.05.2026
+  Bugfixes:
+    - fix multiplayer interface desync when opening the terminal at the same time as another player
+---------------------------------------------------------------------------------------------------
 Version: 1.9.5
 Date: 26.05.2026
   Changes:

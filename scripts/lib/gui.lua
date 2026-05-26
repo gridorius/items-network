@@ -20,6 +20,7 @@ function Gui:new()
     self.interface_bindings = {}
     self.delay_queue = {}
     self.nth_tick_handlers = {}
+    self.current_connector = {}
 
     Gridorius.Events:On(defines.events.on_gui_click, function(event) self:on_gui_click_handler(event) end)
     Gridorius.Events:On(defines.events.on_gui_opened, function(event) self:on_gui_opened_handler(event) end)
@@ -76,6 +77,7 @@ function Gui:on_gui_closed_handler(event)
     self:CloseInterface(game.get_player(event.player_index))
     return self
 end
+
 -- #endregion
 
 function Gui:RenderElements(player, target, ...)
@@ -94,14 +96,14 @@ function Gui:RenderInterface(player, binding, entity)
     end
     local target = binding.target(player, entity)
     if target then
-        self.current_connector = binding.interface:RenderRoot(player, target)
+        self.current_connector[player.index] = binding.interface:RenderRoot(player, target)
         if binding.replace then
-            player.opened = self.current_connector.root
+            player.opened = self.current_connector[player.index].root
         end
     end
 end
 
-function Gui:BindInterface(entity_name, interface, target, replace, delay)
+function Gui:BindEntityInterface(entity_name, interface, target, replace, delay)
     self.interface_bindings[entity_name] = {
         interface = interface,
         target = target,
@@ -113,15 +115,15 @@ end
 
 function Gui:CloseInterface(player)
     player.opened = nil
-    if self.current_connector then
-        if self.current_connector.on_close_handlers then
-            for i = 1, #self.current_connector.on_close_handlers do
-                local handler = self.current_connector.on_close_handlers[i]
-                handler(player, self.current_connector)
+    if self.current_connector and self.current_connector[player.index] then
+        if self.current_connector[player.index].on_close_handlers then
+            for i = 1, #self.current_connector[player.index].on_close_handlers do
+                local handler = self.current_connector[player.index].on_close_handlers[i]
+                handler(player, self.current_connector[player.index])
             end
         end
-        self.current_connector.root.destroy()
-        self.current_connector = nil
+        self.current_connector[player.index].root.destroy()
+        self.current_connector[player.index] = nil
     end
 end
 
