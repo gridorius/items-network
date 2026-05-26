@@ -453,29 +453,29 @@ function NetworkSystem:HandleBuildEntity(event)
 
     if entity.name == Constants.CONNECTOR_NAME then
         local connected = self:FindSupportedEntities(entity)
-        if #connected > 0 then
-            Gridorius.AddMetadata(entity, {
-                connected = connected[1],
-            })
-        else
-            Gridorius.SetMetadata(entity, {});
-        end
-        Gridorius.AddMetadata(entity, {
+        local metadata = {
             render = self:RenderConnectorIndicator(entity),
-        })
+        }
+        if #connected > 0 then
+            metadata.connected = connected[1]
+            self:MarkAsChanged(entity.surface.index)
+        end
+        Gridorius.AddMetadata(entity, metadata)
     else
         local connectors = self:GetConnectors(entity)
         if #connectors > 0 then
             for _, connector in pairs(connectors) do
                 if connector and connector.valid then
-                    Gridorius.AddMetadata(connector, {
-                        connected = entity,
-                    })
+                    Gridorius.SetMetadataValue(connector, "connected", entity)
                 end
             end
+            self:MarkAsChanged(entity.surface.index)
         end
     end
 
+    if entity.name == Constants.CABLE_NAME then
+        self:MarkAsChanged(entity.surface.index)
+    end
 
     if entity.name == Constants.SERVER_NAME then
         storage.servers[entity.unit_number] = {
@@ -486,10 +486,7 @@ function NetworkSystem:HandleBuildEntity(event)
 
         local new_network_id = self:BuildNetwork(entity)
         game.print({ "message.items-network-built-network", new_network_id })
-        return
     end
-
-    self:MarkAsChanged(entity.surface.index)
 end
 
 function NetworkSystem:HandleMineEntity(event)
@@ -497,6 +494,8 @@ function NetworkSystem:HandleMineEntity(event)
     if not self:IsSupportedEntity(entity) then
         return
     end
+
+    Gridorius.RemoveMetadata(entity)
 
     if (self:IsEntityWithPowerPole(entity)) then
         self:RemovePowerPole(entity)

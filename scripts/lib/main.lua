@@ -74,6 +74,10 @@ function Gridorius.GetMetadata(entity, default)
     return Gridorius.metadata[entity.unit_number]
 end
 
+function Gridorius.RemoveMetadata(entity)
+    Gridorius.metadata[entity.unit_number] = nil
+end
+
 function Gridorius.FixMetadata()
     if Gridorius.metadata then
         local valid_metadata = {}

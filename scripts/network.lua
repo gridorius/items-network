@@ -49,10 +49,6 @@ function Network:InitStorage(network_id)
     end
 end
 
-function Network:UpdateSignals()
-    self.signals = self.inventory:BuildSignals()
-end
-
 function Network:CreateItemLimit()
     local new_limit = {
         item = nil,
@@ -80,7 +76,7 @@ function Network:SetTerminalsSignals()
         if terminal and terminal.valid then
             local control = terminal.get_or_create_control_behavior()
             if control and control.valid then
-                control.get_section(1).filters = self.signals
+                control.get_section(1).filters = self.inventory.signals
             end
         end
     end
@@ -267,18 +263,17 @@ function Network:OnTick()
     self.working = true
 
     if Gridorius.nth_tick(60) then
-        self:UpdateSignals()
         self:SetTerminalsSignals()
         self:ProcessTurrets()
         self:ProcessProductionCombinators()
     end
 
-
-    if Gridorius.nth_tick(10) then
-        self:ProcessProductionCombinators()
+    local distribute_max = self.storage.distribute_index + 1
+    if distribute_max < 30 then
+        distribute_max = 30
     end
 
-    local distribute_index = game.tick % (self.storage.distribute_index + 1)
+    local distribute_index = game.tick % distribute_max
     self:CollectChests(distribute_index)
     self:CollectFluidInputs(distribute_index)
     self:FillFluidOutputs(distribute_index)

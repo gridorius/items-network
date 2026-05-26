@@ -9,7 +9,11 @@ function VirtualInventory:new(inventory_id)
     self.fluids = storage_inventory.fluids
     self.insert_fluid_per_operation = settings.global.insert_fluid_per_operation.value or 20
     self.insert_item_stack_per_operation = settings.global.insert_item_stack_per_operation.value or 0.5
+    self.signals = {}
     self:ClearInvalidData()
+    self:PrepareFluidsStorage()
+    self:PrepareItemsStorage()
+    self:BuildSignals()
 
     Gridorius.Events:On(defines.events.on_runtime_mod_setting_changed, function(event)
         if event.setting == "insert_fluid_per_operation" then
@@ -38,6 +42,39 @@ function VirtualInventory:ClearInvalidData()
     for name, _ in pairs(self.fluids) do
         if not prototypes.fluid[name] then
             self.fluids[name] = nil
+        end
+    end
+end
+
+function VirtualInventory:PrepareFluidsStorage()
+    for name, fluid in pairs(prototypes.fluid) do
+        if not self.fluids[name] then
+            self.fluids[name] = {
+                ["default_temperature"] = fluid.default_temperature or 25,
+                ["default"] = 0
+            }
+        else
+            if not self.fluids[name].default_temperature then
+                self.fluids[name].default_temperature = fluid.default_temperature or 25
+            end
+        end
+    end
+end
+
+function VirtualInventory:PrepareItemsStorage()
+    for name, item in pairs(prototypes.item) do
+        if not self.items[name] then
+            self.items[name] = {
+                ["normal"] = 0
+            }
+        else
+            if prototypes.quality then
+                for quality, _ in pairs(prototypes.quality) do
+                    if not self.items[name][quality] then
+                        self.items[name][quality] = 0
+                    end
+                end
+            end
         end
     end
 end
@@ -109,8 +146,12 @@ end
 
 function VirtualInventory:CollectInventory(inventory)
     if inventory.valid and not inventory.is_empty() then
-        local contents = inventory.get_contents()
-        self:InsertItems(contents)
+        for i = 1, #inventory do
+            local item = inventory[i]
+            if item and item.valid_for_read then
+                self:InsertItem(item.name, item.count, item.quality.name)
+            end
+        end
         inventory.clear()
     end
 end
@@ -128,36 +169,69 @@ function VirtualInventory:CollectFluidbox(entity)
 end
 
 function VirtualInventory:BuildSignals()
-    local signals = {}
     for name, amount in pairs(self:GetTotalFluids()) do
-        table.insert(signals, {
+        if amount > 0 then
+            self.signals[name] = {
+                value = {
+                    type = "fluid",
+                    name = name,
+                    quality = "normal",
+                },
+                min = amount,
+            }
+        end
+    end
+
+    for _, item in pairs(self:GetItems()) do
+        if item.count > 0 then
+            self.signals[item.name .. "_" .. item.quality] = {
+                value = {
+                    type = "item",
+                    name = item.name,
+                    quality = item.quality,
+                },
+                min = item.count,
+            }
+        end
+    end
+end
+
+function VirtualInventory:UpdateItemSignal(name, count, quality)
+    local signal_name = name .. "_" .. quality
+    if self.signals[signal_name] then
+        self.signals[signal_name].min = count
+    else
+        self.signals[signal_name] = {
+            value = {
+                type = "item",
+                name = name,
+                quality = quality,
+            },
+            min = count,
+        }
+    end
+end
+
+function VirtualInventory:UpdateFluidSignal(name)
+    local total = self:GetTotalFluid(name)
+    if self.signals[name] then
+        self.signals[name].min = total
+    else
+        self.signals[name] = {
             value = {
                 type = "fluid",
                 name = name,
                 quality = "normal",
             },
-            min = amount,
-        })
+            min = total
+        }
     end
-
-    for _, item in pairs(self:GetItems()) do
-        table.insert(signals, {
-            value = {
-                type = "item",
-                name = item.name,
-                quality = item.quality,
-            },
-            min = item.count,
-        })
-    end
-
-    return signals
 end
 
 function VirtualInventory:InsertItem(name, amount, quality)
     quality = quality or "normal"
-    self.items[name] = self.items[name] or {}
-    self.items[name][quality] = amount + (self.items[name][quality] or 0)
+    self.items[name][quality] = amount + self.items[name][quality]
+    self:UpdateItemSignal(name, self.items[name][quality], quality)
     return self
 end
 
@@ -178,26 +252,19 @@ function VirtualInventory:ParseTemperature(name, temperature)
 end
 
 function VirtualInventory:InsertFluid(name, amount, temperature)
-    if not self.fluids[name] then
-        local default_temperature = prototypes.fluid[name] and prototypes.fluid[name].default_temperature or 25
-        self.fluids[name] = {
-            ["default_temperature"] = default_temperature,
-            ["default"] = 0
-        }
-    end
     temperature = self:ParseTemperature(name, temperature)
-    self.fluids[name] = self.fluids[name] or {}
-    self.fluids[name][temperature] = amount + (self.fluids[name][temperature] or 0)
+    self.fluids[name][temperature] = amount + self.fluids[name][temperature]
+    self:UpdateFluidSignal(name)
     return self
 end
 
 function VirtualInventory:GetItemCount(name, quality)
-    return self.items[name] and self.items[name][quality or "normal"] or 0
+    return self.items[name][quality or "normal"]
 end
 
 function VirtualInventory:GetFluidAmount(name, temperature)
     temperature = temperature or "default"
-    return self.fluids[name] and self.fluids[name][temperature] or 0
+    return self.fluids[name][temperature]
 end
 
 function VirtualInventory:GetItems()
@@ -232,21 +299,38 @@ function VirtualInventory:GetTotalFluids()
     local fluids = {}
     for name, temperatures in pairs(self.fluids) do
         for temperature, amount in pairs(temperatures) do
-            fluids[name] = fluids[name] or 0
-            fluids[name] = fluids[name] + amount
+            if temperature ~= "default_temperature" then
+                fluids[name] = fluids[name] or 0
+                fluids[name] = fluids[name] + amount
+            end
         end
     end
     return fluids
 end
 
+function VirtualInventory:GetTotalFluid(name)
+    local total = 0
+    if self.fluids[name] then
+        for temperature, amount in pairs(self.fluids[name]) do
+            if temperature ~= "default_temperature" then
+                total = total + amount
+            end
+        end
+    end
+    return total
+end
+
 function VirtualInventory:RemoveItem(name, amount, quality)
+    quality = quality or "normal"
     local current_count = self:GetItemCount(name, quality)
     if current_count > 0 then
         if current_count > amount then
-            self.items[name][quality or "normal"] = current_count - amount
+            self.items[name][quality] = current_count - amount
+            self:UpdateItemSignal(name, self.items[name][quality], quality)
             return amount
         else
-            self.items[name][quality or "normal"] = 0
+            self.items[name][quality] = 0
+            self:UpdateItemSignal(name, 0, quality)
             return current_count
         end
     end
@@ -262,35 +346,15 @@ function VirtualInventory:RemoveFluid(name, amount, temperature)
     if current_amount > 0 then
         if current_amount > amount then
             self.fluids[name][temperature] = current_amount - amount
+            self:UpdateFluidSignal(name)
             return amount
         else
             self.fluids[name][temperature] = 0
+            self:UpdateFluidSignal(name)
             return current_amount
         end
     end
     return 0
-end
-
-function VirtualInventory:GetMaxItemQuality(name)
-    local qualities = self.items[name]
-    if not qualities then
-        return nil
-    end
-    local quality_order = prototypes.quality.order or {}
-
-    local max_quality = "normal"
-    for quality, amount in pairs(qualities) do
-        if amount > 0 then
-            if quality_order[quality] and quality_order[max_quality] then
-                if quality_order[quality] > quality_order[max_quality] then
-                    max_quality = quality
-                end
-            elseif quality_order[quality] and not quality_order[max_quality] then
-                max_quality = quality
-            end
-        end
-    end
-    return max_quality
 end
 
 function VirtualInventory:MoveToInventory(item, count, inventory)
@@ -432,7 +496,7 @@ function VirtualInventory:ProcessMachineItems(machine, use_fuels)
         if recipe and machine.active and input_inventory then
             for _, ingredient in pairs(recipe.ingredients) do
                 if ingredient.type == "item" then
-                    local ingredient_quality = recipe_quality or "normal"
+                    local ingredient_quality = recipe_quality
                     if not input_inventory.can_insert(ingredient.name) then
                         goto next_ingriedient
                     end
