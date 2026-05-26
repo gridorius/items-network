@@ -272,40 +272,6 @@ function NetworkSystem:Attach(network, cable)
     end
 end
 
-function NetworkSystem:DestroyInvalidConnections(network)
-    local servers = Gridorius.Dictionary:new(network:GetTypeEntities(Constants.TYPE.SERVER))
-    if servers:Count() > 1 then
-        servers:ForEach(function(server)
-            local server_connectors = storage.connectors and storage.connectors[server.unit_number]
-            if not server_connectors then
-                return
-            end
-            for _, connector in pairs(server_connectors) do
-                if connector and connector.valid then
-                    for _, neighbor in pairs(connector.heat_neighbours) do
-                        if neighbor and neighbor.valid and neighbor.name == Constants.CABLE_NAME then
-                            neighbor.surface.spill_item_stack {
-                                position = neighbor.position,
-                                stack = { name = neighbor.name, count = 1 }
-                            }
-                            neighbor.destroy()
-                            game.print({
-                                "message.items-network-invalid-connection-destroyed",
-                                math.floor(neighbor.position.x),
-                                math.floor(neighbor.position.y)
-                            })
-                        end
-                    end
-                end
-            end
-        end)
-
-        servers:ForEach(function(server)
-            self:BuildNetwork(server)
-        end)
-    end
-end
-
 function NetworkSystem:GetConnectors(entity)
     return entity.surface.find_entities_filtered {
         area = entity.bounding_box,
