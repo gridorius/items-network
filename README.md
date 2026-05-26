@@ -30,3 +30,5 @@ Items inside the network are tracked together with their quality level. The term
 ## Notes
 
 - Best suited for compact production districts, controlled machine feeding, and local cable-based logistics.
+- The terminal outputs circuit signals for the current amount of items stored in the network, so you can wire a machine to it and control production with enable or disable conditions.
+- The production combinator is best used to set recipes on connected machines so the network can maintain a precise target stock of items.

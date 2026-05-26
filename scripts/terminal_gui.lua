@@ -167,7 +167,7 @@ function TerminalGui.render_fluids(network, fluids, player, table)
 	for fluid_name, fluid in pairs(fluids) do
 		if network.inventory.fluids[fluid_name] then
 			for temperature, amount in pairs(network.inventory.fluids[fluid_name]) do
-				if temperature ~= "default_temperature" then
+				if amount > 0 and temperature ~= "default_temperature" then
 					local caption = temperature == "default" and "" or "[color=white]" .. temperature .. "°C[/color]"
 					local tooltip = temperature == "default" and { "fluid-name." .. fluid_name } or
 						{ "", { "fluid-name." .. fluid_name }, " " .. temperature .. "°C" }
@@ -284,7 +284,10 @@ function TerminalGui.render_fluid_selector(network, player, table)
 	table.clear()
 	local current_pipe = Gridorius.state:get_player(player.index, "current_pipe")
 	if not current_pipe then return end
-	local pipe_data = network:GetEntityData(current_pipe)
+	local pipe_data = Gridorius.GetMetadata(current_pipe, {
+		fluid_name = nil,
+		temperature = nil,
+	})
 	if not pipe_data then return end
 
 	for fluid_name, temperatures in pairs(network.inventory.fluids) do
@@ -376,12 +379,12 @@ Gridorius.Events:OnTaggedClick(function(tags, event)
 	elseif tags.type == "fuel" then
 		local use_fuels = current_network.storage.use_fuels
 		use_fuels[tags.fuel_name] = not use_fuels[tags.fuel_name]
-		local fuel_table = player.gui.screen.terminal_frame.content.right.fuel_table
+		local fuel_table = player.gui.screen.terminal_frame.content.right.fuel_scroll.fuel_table
 		TerminalGui.render_fuels(player, fuel_table)
 	elseif tags.type == 'ammo' then
 		local use_ammo = current_network.storage.use_ammo
 		use_ammo[tags.ammo_name] = not use_ammo[tags.ammo_name]
-		local ammo_table = player.gui.screen.terminal_frame.content.right.ammo_table
+		local ammo_table = player.gui.screen.terminal_frame.content.right.ammo_scroll.ammo_table
 		TerminalGui.render_ammo(player, ammo_table)
 	elseif tags.type == "item" then
 		local item_name = element.tags.item_name
@@ -409,8 +412,10 @@ Gridorius.Events:OnTaggedClick(function(tags, event)
 			pipe_data.temperature = temperature
 		end
 
-		storage.network_entities[current_pipe.unit_number].fluid_name = fluid_name
-		storage.network_entities[current_pipe.unit_number].temperature = temperature
+		Gridorius.SetMetadata(current_pipe, {
+			fluid_name = fluid_name,
+			temperature = temperature,
+		})
 		local pipe_table = player.gui.screen.fluid_output_frame.fluids_table
 		TerminalGui.render_fluid_selector(current_network, player, pipe_table)
 	elseif tags.type == 'delete_limit_item' then
@@ -542,11 +547,18 @@ function TerminalGui.BindInterfaces()
 				Gui:RenderElements(
 					player, flow,
 					Gui:CreateLabel({ "gui.items-network-use-ammo" }),
-					Gui:CreateTable("ammo_table", 10)
-					:SetClasses("spacing_5")
-					:AfterCreate(function(table, player)
-						TerminalGui.render_ammo(player, table)
+					Gui:CreateScroll("ammo_scroll")
+					:AfterCreate(function(scroll, player)
+						scroll.style.maximal_height = 300
+						scroll.style.width = 450
 					end)
+					:AppendChild(
+						Gui:CreateTable("ammo_table", 10)
+						:SetClasses("spacing_5")
+						:AfterCreate(function(table, player)
+							TerminalGui.render_ammo(player, table)
+						end)
+					)
 				)
 			end
 		end)
@@ -557,8 +569,15 @@ function TerminalGui.BindInterfaces()
 			end),
 			Gui:CreateLabel(function(player)
 				local network = Gridorius.state:get_player(player.index, "network")
-				return "Состояние: " ..
-				(network.working and "[color=green]Работает[/color]" or "[color=red]недостаточно энергии[/color]")
+				return {
+					"",
+					{ "gui.items-network-terminal-status" },
+					" ",
+					network.working and "[color=green]" or "[color=red]",
+					network.working and { "gui.items-network-terminal-status-working" } or
+					{ "gui.items-network-terminal-status-no-power" },
+					"[/color]",
+				}
 			end),
 			Gui:CreateLabel(function(player)
 				local network = Gridorius.state:get_player(player.index, "network")
@@ -571,11 +590,18 @@ function TerminalGui.BindInterfaces()
 				TerminalGui.render_machines(player, table)
 			end),
 			Gui:CreateLabel({ "gui.items-network-use-fuel" }),
-			Gui:CreateTable("fuel_table", 10)
-			:SetClasses("spacing_5")
-			:AfterCreate(function(table, player)
-				TerminalGui.render_fuels(player, table)
+			Gui:CreateScroll("fuel_scroll")
+			:AfterCreate(function(scroll, player)
+				scroll.style.maximal_height = 300
+				scroll.style.width = 450
 			end)
+			:AppendChild(
+				Gui:CreateTable("fuel_table", 10)
+				:SetClasses("spacing_5")
+				:AfterCreate(function(table, player)
+					TerminalGui.render_fuels(player, table)
+				end)
+			)
 		)
 
 

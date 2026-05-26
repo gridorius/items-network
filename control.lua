@@ -54,6 +54,7 @@ local TerminalGui = require("scripts.terminal_gui")
 
 Gridorius.Events:OnNthTick(10, function(event, handler_id)
     if game then
+        Gridorius.init()
         request_translations()
         local network_system = NetworkSystem:new()
         Gridorius.state:set("network_system", network_system)

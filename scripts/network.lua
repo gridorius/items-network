@@ -17,6 +17,8 @@ function Network:new(network_id)
     self.power_usage = 50
     self.working = true
 
+    self.servers = storage.servers
+
     return self
 end
 
@@ -94,8 +96,15 @@ end
 
 function Network:GetTypeEntities(type, distribute_index)
     local result = {}
+
+    if not distribute_index then
+        for unit_number, entity_data in pairs(self.storage.typed_entities[type] or {}) do
+            result[unit_number] = entity_data.entity
+        end
+    end
+
     for unit_number, entity_data in pairs(self.storage.typed_entities[type] or {}) do
-        if distribute_index == nil or entity_data.distribute_index == distribute_index then
+        if entity_data.distribute_index == distribute_index then
             result[unit_number] = entity_data.entity
         end
     end
@@ -199,16 +208,10 @@ function Network:AttachEntity(entity)
     end
 
     self.storage.typed_entities[type] = self.storage.typed_entities[type] or {}
-
-    if storage.network_entities[entity.unit_number] then
-        self.entities[entity.unit_number] = storage.network_entities[entity.unit_number]
-    else
-        self.entities[entity.unit_number] = {
-            entity = entity,
-            type = type
-        }
-        storage.network_entities[entity.unit_number] = self.entities[entity.unit_number]
-    end
+    self.entities[entity.unit_number] = {
+        entity = entity,
+        type = type
+    }
 
     self.storage.typed_entities[type][entity.unit_number] = self.entities[entity.unit_number]
 
@@ -217,10 +220,10 @@ function Network:AttachEntity(entity)
         self.power_usage = self.power_usage + self:CalculateUsage(depth)
     end
 
-    if Constants.ABSORBABLE_CHEST_TYPES[entity.type] then
-        self.storage.inventories[entity.unit_number] = entity.get_inventory(defines.inventory.chest)
-        self.combined_inventory:AddInventory(self.storage.inventories[entity.unit_number])
-    end
+    -- if Constants.ABSORBABLE_CHEST_TYPES[entity.type] then
+    -- self.storage.inventories[entity.unit_number] = entity.get_inventory(defines.inventory.chest)
+    -- self.combined_inventory:AddInventory(self.storage.inventories[entity.unit_number])
+    -- end
 
     if Constants.DISTRIBUTABLE_TYPES[self.entities[entity.unit_number].type] then
         self.entities[entity.unit_number].distribute_index = self:GetDistributeIndex()
@@ -244,18 +247,8 @@ function Network:OnTick()
     if not self.storage.server or not self.storage.server.valid then
         return
     end
-    local interface = storage.servers[self.storage.server.unit_number].energy_interface
-    if interface.energy == 0 then
-        self.working = false
-        return
-    end
-    self.working = true
-
+    local interface = self.servers[self.storage.server.unit_number].energy_interface
     if Gridorius.nth_tick(60) then
-        self:UpdateSignals()
-        self:SetTerminalsSignals()
-        self:ProcessTurrets()
-        self:ProcessProductionCombinators()
         if interface and interface.valid then
             if self.storage.use_energy then
                 interface.electric_buffer_size = self.power_usage
@@ -266,6 +259,20 @@ function Network:OnTick()
             end
         end
     end
+
+    if self.storage.use_energy and interface.energy == 0 then
+        self.working = false
+        return
+    end
+    self.working = true
+
+    if Gridorius.nth_tick(60) then
+        self:UpdateSignals()
+        self:SetTerminalsSignals()
+        self:ProcessTurrets()
+        self:ProcessProductionCombinators()
+    end
+
 
     if Gridorius.nth_tick(10) then
         self:ProcessProductionCombinators()
@@ -356,34 +363,37 @@ function Network:CollectChests(distribute_index)
 end
 
 function Network:FillFluidOutputs(distribute_index)
-    local output_pipes_data = self:GetTypeEntitiesData(Constants.TYPE.FLUID_OUTPUT, distribute_index)
-    for _, pipe_data in pairs(output_pipes_data) do
-        if pipe_data.entity and pipe_data.entity.valid and pipe_data.fluid and pipe_data.temperature then
-            local pipe = pipe_data.entity
-            local inventory_amount = self.inventory:GetFluidAmount(pipe_data.fluid, pipe_data.temperature)
+    local output_pipes = self:GetTypeEntities(Constants.TYPE.FLUID_OUTPUT, distribute_index)
+    for _, pipe in pairs(output_pipes) do
+        if pipe and pipe.valid then
+            local pipe_data = Gridorius.GetMetadata(pipe)
+            if pipe_data and pipe_data.fluid_name and pipe_data.temperature then
+                local inventory_amount = self.inventory:GetFluidAmount(pipe_data.fluid_name, pipe_data.temperature)
 
-            local need_collect = false
-            for i = 1, #pipe.fluidbox do
-                local fluid = pipe.fluidbox[i]
-                local needed_temperature = pipe_data.temperature == "default" and
-                    self.inventory.fluids[pipe_data.fluid].default_temperature or pipe_data.temperature
-                if fluid and fluid.name and (fluid.name ~= pipe_data.fluid or fluid.temperature ~= needed_temperature) then
-                    need_collect = true
-                    break
+                local need_collect = false
+                for i = 1, #pipe.fluidbox do
+                    local fluid = pipe.fluidbox[i]
+                    local needed_temperature = pipe_data.temperature == "default" and
+                        self.inventory.fluids[pipe_data.fluid_name].default_temperature or pipe_data.temperature
+                    if fluid and fluid.name and (fluid.name ~= pipe_data.fluid_name or fluid.temperature ~= needed_temperature) then
+                        need_collect = true
+                        break
+                    end
                 end
-            end
 
-            if need_collect then
-                self.inventory:CollectFluidbox(pipe)
-            end
+                if need_collect then
+                    self.inventory:CollectFluidbox(pipe)
+                end
 
-            local temperature = pipe_data.temperature == "default" and
-                self.inventory.fluids[pipe_data.fluid].default_temperature or pipe_data.temperature
+                local temperature = pipe_data.temperature == "default" and
+                    self.inventory.fluids[pipe_data.fluid_name].default_temperature or pipe_data.temperature
 
-            local inserted = Gridorius.insert_fluid(pipe.fluidbox,
-                { name = pipe_data.fluid, amount = inventory_amount, temperature = temperature }, 1, inventory_amount)
-            if inserted > 0 then
-                self.inventory:RemoveFluid(pipe_data.fluid, inserted, pipe_data.temperature)
+                local inserted = Gridorius.insert_fluid(pipe.fluidbox,
+                    { name = pipe_data.fluid_name, amount = inventory_amount, temperature = temperature }, 1,
+                    inventory_amount)
+                if inserted > 0 then
+                    self.inventory:RemoveFluid(pipe_data.fluid_name, inserted, pipe_data.temperature)
+                end
             end
         end
     end

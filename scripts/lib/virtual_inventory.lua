@@ -26,6 +26,12 @@ function VirtualInventory:ClearInvalidData()
     for name, _ in pairs(self.items) do
         if not prototypes.item[name] then
             self.items[name] = nil
+        else
+            for quality, _ in pairs(self.items[name]) do
+                if quality ~= "normal" and (not prototypes.quality or not prototypes.quality[quality]) then
+                    self.items[name][quality] = nil
+                end
+            end
         end
     end
 

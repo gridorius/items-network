@@ -41,44 +41,49 @@ Gridorius.insert_fluid = function(fluidbox, fluid, index, max_insert)
     return 0
 end
 
-function Gridorius.SetMetadata(entity, metadata)
+function Gridorius.init()
     storage.metadata = storage.metadata or {}
-    if entity and entity.valid then
-        storage.metadata[entity.unit_number] = metadata
+    Gridorius.metadata = storage.metadata
+end
+
+function Gridorius.SetMetadata(entity, metadata)
+    Gridorius.metadata = Gridorius.metadata or {}
+    Gridorius.metadata[entity.unit_number] = metadata
+end
+
+function Gridorius.SetMetadataValue(entity, key, value)
+    if not Gridorius.metadata[entity.unit_number] then
+        Gridorius.metadata[entity.unit_number] = {}
     end
+    Gridorius.metadata[entity.unit_number][key] = value
 end
 
 function Gridorius.AddMetadata(entity, metadata)
-    storage.metadata = storage.metadata or {}
-    if entity and entity.valid then
-        storage.metadata[entity.unit_number] = storage.metadata[entity.unit_number] or {}
-        for key, value in pairs(metadata) do
-            storage.metadata[entity.unit_number][key] = value
-        end
+    if not Gridorius.metadata[entity.unit_number] then
+        Gridorius.metadata[entity.unit_number] = {}
+    end
+    for key, value in pairs(metadata) do
+        Gridorius.metadata[entity.unit_number][key] = value
     end
 end
 
 function Gridorius.GetMetadata(entity, default)
-    if entity and entity.valid and storage.metadata then
-        if not storage.metadata[entity.unit_number] and default then
-           storage.metadata[entity.unit_number] = default
-        end
-        return storage.metadata[entity.unit_number]
+    if not Gridorius.metadata[entity.unit_number] and default then
+        Gridorius.metadata[entity.unit_number] = default or {}
     end
-    return nil
+    return Gridorius.metadata[entity.unit_number]
 end
 
-
 function Gridorius.FixMetadata()
-    if storage.metadata then
+    if Gridorius.metadata then
         local valid_metadata = {}
-        for unit_number, metadata in pairs(storage.metadata) do
+        for unit_number, metadata in pairs(Gridorius.metadata) do
             local entity = game.get_entity_by_unit_number(unit_number)
             if entity and entity.valid then
                 valid_metadata[unit_number] = metadata
             end
         end
-        storage.metadata = valid_metadata
+        Gridorius.metadata = valid_metadata
     end
 end
 

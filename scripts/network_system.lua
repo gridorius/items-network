@@ -13,7 +13,6 @@ function NetworkSystem:new()
     storage.networks = storage.networks or {}
     storage.power_poles = storage.power_poles or {}
     storage.next_network_id = storage.next_network_id or 1
-    storage.network_entities = storage.network_entities or {}
 
     self.networks = {}
     self.networks_changed = {}
@@ -22,6 +21,7 @@ function NetworkSystem:new()
     rendering.clear("items-network")
     -- todo: old compatible
     self:ForceSetServersMinable()
+
     self:InitNetworks()
     self:RebuildEnergyInterfaces()
     self:RebuildPowerPoles()
@@ -71,14 +71,6 @@ end
 function NetworkSystem:InitNetworks()
     for network_id, network_data in pairs(storage.networks) do
         self.networks[network_id] = Network:new(network_id)
-    end
-end
-
-function NetworkSystem:ClearInvalidEntities()
-    for unit_number, entity_data in pairs(storage.network_entities) do
-        if not entity_data.entity or not entity_data.entity.valid then
-            storage.network_entities[unit_number] = nil
-        end
     end
 end
 
@@ -199,6 +191,19 @@ end
 
 function NetworkSystem:RebuildSurfaceNetworks(surface_index)
     local surface_servers = {}
+
+    local connectors = game.surfaces[surface_index].find_entities_filtered {
+        name = Constants.CONNECTOR_NAME
+    }
+    for _, connector in pairs(connectors) do
+        if connector and connector.valid then
+            local metadata = Gridorius.GetMetadata(connector)
+            if metadata and metadata.render then
+                metadata.render.color = { 0, 0, 1 }
+            end
+        end
+    end
+
     for _, server in pairs(storage.servers) do
         if server.entity and server.entity.valid and (not surface_index or server.entity.surface.index == surface_index) then
             table.insert(surface_servers, server)
@@ -253,9 +258,7 @@ function NetworkSystem:ConnectNeighbor(network, cables, visited, depth)
         if Constants.CABLE_ENTITIES[cable.name] then
             if not visited[cable.unit_number] then
                 visited[cable.unit_number] = true
-                Gridorius.AddMetadata(cable, {
-                    depth = depth,
-                })
+                Gridorius.SetMetadataValue(cable, "depth", depth)
                 network:AttachEntity(cable)
                 self:Attach(network, cable)
                 for _, neighbor in pairs(cable.heat_neighbours) do
@@ -283,16 +286,15 @@ function NetworkSystem:Attach(network, cable)
                 network:AttachEntity(metadata.connected)
                 local current_box = metadata.render
                 if current_box then
-                    current_box.destroy()
+                    current_box.color = { 0, 1, 0 }
+                else
+                    Gridorius.AddMetadata(cable, {
+                        render = self:RenderConnectorIndicator(cable, { 0, 1, 0 }),
+                    })
                 end
-                Gridorius.AddMetadata(cable, {
-                    render = self:RenderConnectorIndicator(cable, { 0, 1, 0 }),
-                })
             else
                 Gridorius.AddMetadata(cable, {
                     connected = nil,
-                })
-                Gridorius.AddMetadata(cable, {
                     render = self:RenderConnectorIndicator(cable),
                 })
             end
@@ -508,10 +510,6 @@ function NetworkSystem:HandleMineEntity(event)
 end
 
 function NetworkSystem:HandleTick(event)
-    if Gridorius.nth_tick(120) then
-        self:ClearInvalidEntities()
-    end
-
     for surface_index, changed in pairs(self.networks_changed) do
         if changed then
             if self.rebuild_delay > 0 then

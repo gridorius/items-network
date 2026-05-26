@@ -1,17 +1,28 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.9.5
+Date: 26.05.2026
+  Changes:
+    - tried to optimize the network restructuring
+    - pipe metadata storage has been moved, all output pipes will have to be reconfigured
+    - removed display of liquid if quantity is zero
+    - added scrolls to ammunition and fuel network
+  Bugfixes:
+    - added missing localization
+    - fixed network operation with power consumption turned off
+---------------------------------------------------------------------------------------------------
 Version: 1.9.3
-Date: 18.05.2026
+Date: 25.05.2026
   Bugfixes:
     - automatic clear virtual inventory of invalid items and fluids on load and when settings change
     - fix server minable state on old saves
 ---------------------------------------------------------------------------------------------------
 Version: 1.9.2
-Date: 18.05.2026
+Date: 25.05.2026
   Bugfixes:
     - fix translation bug
 ---------------------------------------------------------------------------------------------------
 Version: 1.9.1
-Date: 18.05.2026
+Date: 25.05.2026
   Bugfixes:
     - fix supported entities
 ---------------------------------------------------------------------------------------------------
