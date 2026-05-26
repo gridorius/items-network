@@ -80,6 +80,9 @@ function NetworkSystem:MarkAsChanged(surface_id)
 end
 
 function NetworkSystem:CreatePowerPole(entity)
+    if not self:IsPowerConductivityUnlocked(entity.force) then
+        return
+    end
     local pole = entity.surface.create_entity {
         name = Constants.HIDDEN_POWER_POLE_NAME,
         position = { x = entity.position.x, y = entity.position.y },
@@ -182,7 +185,7 @@ function NetworkSystem:RebuildPowerPoles()
             end
         end
         for _, cable in pairs(surface.find_entities_filtered { name = cable_entities }) do
-            if cable and cable.valid then
+            if cable and cable.valid and self:IsPowerConductivityUnlocked(cable.force) then
                 self:CreatePowerPole(cable)
             end
         end
@@ -213,39 +216,6 @@ function NetworkSystem:RebuildSurfaceNetworks(surface_index)
     for _, server in pairs(surface_servers) do
         if server.entity and server.entity.valid then
             self:BuildNetwork(server.entity)
-        end
-    end
-end
-
-function NetworkSystem:GetNextUndergroundConnector(entity, visited)
-    if not entity or not entity.valid or entity.name ~= Constants.UNDERGROUND_CABLE_NAME then
-        return nil
-    end
-
-    for _, neighbors in pairs(entity.neighbours) do
-        for _, neighbor in pairs(neighbors) do
-            if neighbor and neighbor.valid and neighbor.name == Constants.UNDERGROUND_CABLE_NAME and neighbor.unit_number ~= entity.unit_number then
-                local connector = storage.connectors and storage.connectors[neighbor.unit_number] and
-                    storage.connectors[neighbor.unit_number][1]
-                if connector and connector.valid and not visited[connector.unit_number] then
-                    return connector
-                end
-            end
-        end
-    end
-
-    return nil
-end
-
-function NetworkSystem:ConnectUndergroundPoles(connector1, connector2)
-    local pole1 = storage.power_poles and storage.power_poles[connector1.unit_number]
-    local pole2 = storage.power_poles and storage.power_poles[connector2.unit_number]
-
-    if pole1 and pole1.valid and pole2 and pole2.valid then
-        local wire_connector1 = pole1.get_wire_connector(defines.wire_connector_id.pole_copper)
-        local wire_connector2 = pole2.get_wire_connector(defines.wire_connector_id.pole_copper)
-        if wire_connector1 and wire_connector2 then
-            wire_connector1.connect_to(wire_connector2, false)
         end
     end
 end
