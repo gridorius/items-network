@@ -44,6 +44,7 @@ end
 function Gridorius.init()
     storage.metadata = storage.metadata or {}
     Gridorius.metadata = storage.metadata
+    Gridorius.FixMetadata()
 end
 
 function Gridorius.SetMetadata(entity, metadata)
@@ -58,6 +59,12 @@ function Gridorius.SetMetadataValue(entity, key, value)
     Gridorius.metadata[entity.unit_number][key] = value
 end
 
+function Gridorius.RemoveMetadataValue(entity, key)
+    if Gridorius.metadata[entity.unit_number] then
+        Gridorius.metadata[entity.unit_number][key] = nil
+    end
+end
+
 function Gridorius.AddMetadata(entity, metadata)
     if not Gridorius.metadata[entity.unit_number] then
         Gridorius.metadata[entity.unit_number] = {}
@@ -69,7 +76,7 @@ end
 
 function Gridorius.GetMetadata(entity, default)
     if not Gridorius.metadata[entity.unit_number] and default then
-        Gridorius.metadata[entity.unit_number] = default or {}
+        Gridorius.metadata[entity.unit_number] = default
     end
     return Gridorius.metadata[entity.unit_number]
 end

@@ -14,20 +14,21 @@ function NetworkSystem:new()
     storage.power_poles = storage.power_poles or {}
     storage.next_network_id = storage.next_network_id or 1
 
+    storage.cables = storage.cables or {}
+    storage.cable_systems = storage.cable_systems or {}
+    self.cables = storage.cables
+    self.cable_systems = storage.cable_systems
+
     self.networks = {}
-    self.networks_changed = {}
-    self.rebuild_delay = 0
 
     rendering.clear("items-network")
     -- todo: old compatible
     self:ForceSetServersMinable()
-
+    self:ReconnectConnectors()
+    self:BuilCableSystems()
     self:InitNetworks()
     self:RebuildEnergyInterfaces()
     self:RebuildPowerPoles()
-    for _, surface in pairs(game.surfaces) do
-        self:RebuildSurfaceNetworks(surface.index)
-    end
     Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
     Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
     Gridorius.Events:On(defines.events.on_research_finished, function(event)
@@ -36,22 +37,195 @@ function NetworkSystem:new()
     Gridorius.Events:OnNthTick(1, function(event) self:HandleTick(event) end)
     Gridorius.Events:On(defines.events.on_runtime_mod_setting_changed, function(event)
         if event.setting == "network_machines_per_tick" then
-            for _, surface in pairs(game.surfaces) do
-                self:RebuildSurfaceNetworks(surface.index)
-            end
-        elseif event.setting == "fill_turret_ammo" then
-            for _, surface in pairs(game.surfaces) do
-                self:RebuildSurfaceNetworks(surface.index)
+            for _, network in pairs(self.networks) do
+                network:OnChangeSettings()
             end
         elseif event.setting == "use_energy" then
-            for _, surface in pairs(game.surfaces) do
-                self:RebuildSurfaceNetworks(surface.index)
+            for _, network in pairs(self.networks) do
+                network:OnChangeSettings()
             end
         end
     end)
     return self
 end
 
+function NetworkSystem:RenderDebugCableSystem(cable, system_id)
+    rendering.draw_text {
+        text = system_id,
+        surface = cable.surface,
+        target = cable,
+        color = { r = 1, g = 1, b = 1 },
+        scale = 0.5,
+        font = "default-game",
+        time_to_live = 1000
+    }
+end
+
+-- Обновить метаданные подключений коннекторов
+function NetworkSystem:ReconnectConnectors()
+    for _, surface in pairs(game.surfaces) do
+        local connectors = surface.find_entities_filtered {
+            name = Constants.CONNECTOR_NAME
+        }
+        for _, connector in pairs(connectors) do
+            local connected = self:FindSupportedEntities(connector)
+            local metadata = Gridorius.GetMetadata(connector, {})
+            metadata.render = self:RenderConnectorIndicator(connector, { 0, 0, 1 })
+            if #connected > 0 then
+                metadata.connected = connected[1]
+            else
+                metadata.connected = nil
+            end
+        end
+    end
+end
+
+-- Строит системы кабелей, если они еще не построены
+function NetworkSystem:BuilCableSystems()
+    local cable_entities = Gridorius.Dictionary:new(Constants.CABLE_ENTITIES):Keys()
+    for _, surface in pairs(game.surfaces) do
+        local cables = surface.find_entities_filtered {
+            name = cable_entities
+        }
+        for _, cable in pairs(cables) do
+            if not self.cables[cable.unit_number] then
+                self:HandleNewCable(cable)
+                self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
+            else
+                self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
+            end
+        end
+    end
+end
+
+-- Сливает несколько систем кабелей в одну, обновляя их идентификаторы и возвращая новый идентификатор системы
+function NetworkSystem:MergeCableSystems(new_id, systems)
+    local entities = {}
+    for id, _ in pairs(systems) do
+        if self.cable_systems[id] then
+            for unit_number, cable in pairs(self.cable_systems[id]) do
+                entities[unit_number] = cable
+                self.cables[unit_number].system_id = new_id
+            end
+            self.cable_systems[id] = nil
+        end
+    end
+    self.cable_systems[new_id] = entities
+    return new_id
+end
+
+-- Добавляет кабель в систему, и ищет соседей и принадлежность к другим системам
+function NetworkSystem:InitNewCable(cable, system_id, systems)
+    self.cables[cable.unit_number] = {
+        neighbours = {},
+        system_id = system_id
+    }
+    local current_system_id = system_id
+    local cable_data = self.cables[cable.unit_number]
+    for _, neighbour in pairs(cable.heat_neighbours) do
+        if neighbour.unit_number ~= cable.unit_number and Constants.CABLE_ENTITIES[neighbour.name] then
+            cable_data.neighbours[neighbour.unit_number] = neighbour
+            if self.cables[neighbour.unit_number] then
+                local neighbour_data = self.cables[neighbour.unit_number]
+                neighbour_data.neighbours[cable.unit_number] = cable
+                if neighbour_data.system_id ~= current_system_id then
+                    current_system_id = neighbour_data.system_id
+                    systems[current_system_id] = true
+                end
+            end
+        end
+    end
+end
+
+-- Устанавливает систему для кабеля и добавляет его в систему
+function NetworkSystem:SetCableSystem(cable, system_id)
+    self.cables[cable.unit_number].system_id = system_id
+    self.cable_systems[system_id][cable.unit_number] = cable
+end
+
+-- Обрабатывает добавление нового кабеля, определяя его систему и при необходимости сливая системы
+function NetworkSystem:HandleNewCable(cable)
+    local system_count = 0
+    local system_id = cable.unit_number
+    local systems = {}
+    local first_system = nil
+
+    self:InitNewCable(cable, system_id, systems)
+    for id, _ in pairs(systems) do
+        system_count = system_count + 1
+        first_system = id
+    end
+
+    if system_count == 1 then
+        self:SetCableSystem(cable, first_system)
+    elseif system_count > 1 then
+        self:SetCableSystem(cable, first_system)
+        system_id = cable.unit_number;
+        self:MergeCableSystems(system_id, systems)
+        self:RebuildSystemNetworks(system_id)
+    else
+        self.cable_systems[system_id] = {
+            [cable.unit_number] = cable
+        }
+    end
+end
+
+-- Обрабатывает удаление кабеля, удаляя его из системы и соседей
+function NetworkSystem:HandleRemoveCable(cable)
+    if self.cables[cable.unit_number] then
+        for neighbour_unit_number, neighbour in pairs(self.cables[cable.unit_number].neighbours) do
+            if self.cables[neighbour_unit_number] then
+                self.cables[neighbour_unit_number].neighbours[cable.unit_number] = nil
+            end
+        end
+        local system_id = self.cables[cable.unit_number].system_id;
+        if self.cable_systems[system_id] then
+            self.cable_systems[system_id][cable.unit_number] = nil
+        end
+        self.cables[cable.unit_number] = nil
+    end
+end
+
+-- Пересчитывает систему кабелей после удаления кабеля, разделяя систему на несколько при необходимости
+function NetworkSystem:RecalculateCableSystem(id)
+    local system = self.cable_systems[id]
+    if not system then
+        return
+    end
+    local visited = {}
+    local systems = {}
+    for unit_number, cable in pairs(system) do
+        if not visited[unit_number] then
+            local new_system_id = cable.unit_number
+            local system = {}
+            self:ConnectCableSystem(cable, new_system_id, visited, system)
+            systems[new_system_id] = system
+        end
+    end
+    self.cable_systems[id] = nil
+    for new_id, system in pairs(systems) do
+        self.cable_systems[new_id] = system
+        self:RebuildSystemNetworks(new_id)
+    end
+end
+
+-- Рекурсивно подключает кабели к системе, обновляя их идентификаторы и добавляя в систему
+function NetworkSystem:ConnectCableSystem(cable, system_id, visited, system)
+    if not system then
+        system = {}
+    end
+    self:RenderDebugCableSystem(cable, system_id)
+    visited[cable.unit_number] = true
+    system[cable.unit_number] = cable
+    self.cables[cable.unit_number].system_id = system_id
+    for neighbour_unit_number, neighbour in pairs(self.cables[cable.unit_number].neighbours) do
+        if not visited[neighbour_unit_number] then
+            self:ConnectCableSystem(neighbour, system_id, visited, system)
+        end
+    end
+end
+
+-- Принудительно устанавливает всем серверам возможность быть добытыми, чтобы игроки могли их перемещать после обновления
 function NetworkSystem:ForceSetServersMinable()
     for _, surface in pairs(game.surfaces) do
         for _, server in pairs(surface.find_entities_filtered { name = Constants.SERVER_NAME }) do
@@ -72,11 +246,6 @@ function NetworkSystem:InitNetworks()
     for network_id, network_data in pairs(storage.networks) do
         self.networks[network_id] = Network:new(network_id)
     end
-end
-
-function NetworkSystem:MarkAsChanged(surface_id)
-    self.networks_changed[surface_id] = true
-    self.rebuild_delay = Constants.REBUILD_DELAY
 end
 
 function NetworkSystem:CreatePowerPole(entity)
@@ -192,84 +361,65 @@ function NetworkSystem:RebuildPowerPoles()
     end
 end
 
-function NetworkSystem:RebuildSurfaceNetworks(surface_index)
-    local surface_servers = {}
-
-    local connectors = game.surfaces[surface_index].find_entities_filtered {
-        name = Constants.CONNECTOR_NAME
-    }
-    for _, connector in pairs(connectors) do
-        if connector and connector.valid then
-            local metadata = Gridorius.GetMetadata(connector)
-            if metadata and metadata.render then
-                metadata.render.color = { 0, 0, 1 }
-            end
-        end
-    end
-
-    for _, server in pairs(storage.servers) do
-        if server.entity and server.entity.valid and (not surface_index or server.entity.surface.index == surface_index) then
-            table.insert(surface_servers, server)
-        end
-    end
-
-    for _, server in pairs(surface_servers) do
-        if server.entity and server.entity.valid then
-            self:BuildNetwork(server.entity)
-        end
-    end
-end
-
-function NetworkSystem:ConnectNeighbor(network, cables, visited, depth)
-    depth = depth or 0
-    visited = visited or {}
-    local next = {}
-    for _, cable in pairs(cables) do
-        if Constants.CABLE_ENTITIES[cable.name] then
-            if not visited[cable.unit_number] then
-                visited[cable.unit_number] = true
-                Gridorius.SetMetadataValue(cable, "depth", depth)
-                network:AttachEntity(cable)
-                self:Attach(network, cable)
-                for _, neighbor in pairs(cable.heat_neighbours) do
-                    if neighbor and neighbor.valid and Constants.CABLE_ENTITIES[neighbor.name] then
-                        if not visited[neighbor.unit_number] then
-                            table.insert(next, neighbor)
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    if #next == 0 then
+-- Реконструирует сети, подключенные к системе кабелей, при изменении системы
+function NetworkSystem:RebuildSystemNetworks(system_id)
+    local system = storage.cable_systems[system_id]
+    if not system then
         return
     end
-    self:ConnectNeighbor(network, next, visited, depth + 1)
-end
 
-function NetworkSystem:Attach(network, cable)
-    if cable.name == Constants.CONNECTOR_NAME then
-        local metadata = Gridorius.GetMetadata(cable)
-        if metadata and metadata.connected then
-            if metadata.connected.valid then
-                network:AttachEntity(metadata.connected)
-                local current_box = metadata.render
-                if current_box then
-                    current_box.color = { 0, 1, 0 }
-                else
-                    Gridorius.AddMetadata(cable, {
-                        render = self:RenderConnectorIndicator(cable, { 0, 1, 0 }),
-                    })
+    local connected = {}
+    local connectors = {}
+    local servers = {}
+
+    for _, cable in pairs(system) do
+        if cable and cable.valid and cable.name == Constants.CONNECTOR_NAME then
+            connectors[#connectors + 1] = cable
+            local metadata = Gridorius.GetMetadata(cable)
+            if metadata then
+                metadata.render.color = { 0, 0, 1 }
+                if metadata.connected and metadata.connected.valid then
+                    if metadata.connected.name == Constants.SERVER_NAME then
+                        servers[metadata.connected.unit_number] = metadata.connected
+                    end
+                    connected[metadata.connected.unit_number] = metadata.connected
                 end
-            else
-                Gridorius.AddMetadata(cable, {
-                    connected = nil,
-                    render = self:RenderConnectorIndicator(cable),
-                })
             end
         end
     end
+
+    if #servers == 0 then
+         return
+    end
+
+    local main_network = nil
+    local main_server = nil
+    for _, server in pairs(servers) do
+        local network_id = storage.servers[server.unit_number].network_id
+        local network = self.networks[network_id]
+        if not main_network then
+            main_network = network
+            main_server = server
+        else
+            main_network.inventory:Merge(network.inventory)
+            network:Destroy()
+            self.networks[network_id] = nil
+            storage.servers[server.unit_number] = nil
+            server.destroy()
+        end
+    end
+
+    if not main_network then
+        return
+    end
+
+    for _, cable in pairs(connectors) do
+        local metadata = Gridorius.GetMetadata(cable)
+        if cable and cable.valid and cable.name == Constants.CONNECTOR_NAME and metadata.connected then
+            metadata.render.color = { 0, 1, 0 }
+        end
+    end
+    main_network:AttachEntities(main_server, connected)
 end
 
 function NetworkSystem:GetConnectors(entity)
@@ -280,20 +430,29 @@ function NetworkSystem:GetConnectors(entity)
 end
 
 function NetworkSystem:FindSupportedEntities(cable)
+    local found_by_name = cable.surface.find_entities_filtered {
+        area = cable.bounding_box,
+        name = Constants.SUPPORTED_ENTITY_NAMES,
+    }
+
+    if #found_by_name > 0 then
+        return found_by_name
+    end
+
     local found_by_type = cable.surface.find_entities_filtered {
         area = cable.bounding_box,
         type = Constants.SUPPORTED_ENTITY_TYPES,
     }
 
-    if #found_by_type > 0 then
-        return found_by_type
-    end
+    return found_by_type
+end
 
-    local found_by_name = cable.surface.find_entities_filtered {
-        area = cable.bounding_box,
-        name = Constants.SUPPORTED_ENTITY_NAMES,
-    }
-    return found_by_name
+function NetworkSystem:CreateNetwork(server)
+    local network_id = self:GetNextNetworkId()
+    local network = Network:new(network_id)
+    self.networks[network_id] = network
+    storage.servers[server.unit_number].network_id = network_id
+    return network_id
 end
 
 function NetworkSystem:BuildNetwork(server)
@@ -301,10 +460,7 @@ function NetworkSystem:BuildNetwork(server)
     local network = network_id and self.networks[network_id]
 
     if not network then
-        network_id = self:GetNextNetworkId()
-        network = Network:new(network_id)
-        self.networks[network_id] = network
-        storage.servers[server.unit_number].network_id = network_id
+        network_id = self:CreateNetwork(server)
     end
 
     if network then
@@ -319,7 +475,7 @@ function NetworkSystem:BuildNetwork(server)
 end
 
 function NetworkSystem:RenderConnectorIndicator(entity, color)
-    rendering.draw_rectangle {
+    return rendering.draw_rectangle {
         color = color or { 0, 0, 1 },
         left_top = { entity = entity, offset = { 0.3, 0.3 } },
         right_bottom = entity.selection_box.right_bottom,
@@ -347,7 +503,10 @@ function NetworkSystem:DestroyServer(entity)
     end
     if server and server.network_id then
         local network = self.networks[server.network_id]
-
+        if not network then
+            storage.servers[entity.unit_number] = nil
+            return
+        end
 
         local chest = entity.surface.create_entity {
             name = Constants.NETWORK_STORAGE_CHEST_NAME,
@@ -387,32 +546,6 @@ function NetworkSystem:HandleBuildEntity(event)
         self:CreatePowerPole(entity)
     end
 
-    if entity.name == Constants.CONNECTOR_NAME then
-        local connected = self:FindSupportedEntities(entity)
-        local metadata = {
-            render = self:RenderConnectorIndicator(entity),
-        }
-        if #connected > 0 then
-            metadata.connected = connected[1]
-            self:MarkAsChanged(entity.surface.index)
-        end
-        Gridorius.AddMetadata(entity, metadata)
-    else
-        local connectors = self:GetConnectors(entity)
-        if #connectors > 0 then
-            for _, connector in pairs(connectors) do
-                if connector and connector.valid then
-                    Gridorius.SetMetadataValue(connector, "connected", entity)
-                end
-            end
-            self:MarkAsChanged(entity.surface.index)
-        end
-    end
-
-    if entity.name == Constants.CABLE_NAME then
-        self:MarkAsChanged(entity.surface.index)
-    end
-
     if entity.name == Constants.SERVER_NAME then
         storage.servers[entity.unit_number] = {
             entity = entity,
@@ -420,8 +553,42 @@ function NetworkSystem:HandleBuildEntity(event)
             energy_interface = self:CreateEnergyInterface(entity),
         }
 
-        local new_network_id = self:BuildNetwork(entity)
+        local new_network_id = self:CreateNetwork(entity)
         game.print({ "message.items-network-built-network", new_network_id })
+    end
+
+    if entity.name == Constants.CONNECTOR_NAME then
+        local connected = self:FindSupportedEntities(entity)
+        local metadata = {
+            render = self:RenderConnectorIndicator(entity),
+        }
+        if #connected > 0 then
+            metadata.connected = connected[1]
+        end
+        Gridorius.AddMetadata(entity, metadata)
+    else
+        local connectors = self:GetConnectors(entity)
+        if #connectors > 0 then
+            local systems = {}
+            for _, connector in pairs(connectors) do
+                if connector and connector.valid then
+                    Gridorius.SetMetadataValue(connector, "connected", entity)
+                    local system_id = storage.cables[connector.unit_number] and
+                        storage.cables[connector.unit_number].system_id
+                    systems[system_id] = true
+                end
+            end
+
+            for system_id, _ in pairs(systems) do
+                if system_id then
+                    self:RebuildSystemNetworks(system_id)
+                end
+            end
+        end
+    end
+
+    if Constants.CABLE_ENTITIES[entity.name] then
+        self:HandleNewCable(entity)
     end
 end
 
@@ -433,6 +600,22 @@ function NetworkSystem:HandleMineEntity(event)
 
     Gridorius.RemoveMetadata(entity)
 
+    if Constants.CABLE_ENTITIES[entity.name] then
+        local system_id = storage.cables[entity.unit_number].system_id
+        self:HandleRemoveCable(entity)
+        self:RecalculateCableSystem(system_id)
+    else
+        local connectors = self:GetConnectors(entity)
+        local systems = {}
+        for _, connector in pairs(connectors) do
+            systems[storage.cables[connector.unit_number].system_id] = true
+            Gridorius.RemoveMetadataValue(connector, "connected")
+        end
+        for system_id, _ in pairs(systems) do
+            self:RebuildSystemNetworks(system_id)
+        end
+    end
+
     if (self:IsEntityWithPowerPole(entity)) then
         self:RemovePowerPole(entity)
     end
@@ -440,22 +623,9 @@ function NetworkSystem:HandleMineEntity(event)
     if entity.name == Constants.SERVER_NAME then
         self:DestroyServer(entity)
     end
-
-    self:MarkAsChanged(entity.surface.index)
 end
 
 function NetworkSystem:HandleTick(event)
-    for surface_index, changed in pairs(self.networks_changed) do
-        if changed then
-            if self.rebuild_delay > 0 then
-                self.rebuild_delay = self.rebuild_delay - 1
-            else
-                self:RebuildSurfaceNetworks(surface_index)
-                self.networks_changed[surface_index] = false
-            end
-        end
-    end
-
     for _, network in pairs(self.networks) do
         network:OnTick()
     end

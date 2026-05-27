@@ -141,6 +141,20 @@ function Network:ResetEntities()
     self.power_usage = 50
 end
 
+function Network:OnChangeSettings()
+    self.storage.distribute_index = 1
+    self.storage.distribute_current = settings.global.network_machines_per_tick.value
+    self.storage.use_energy = settings.global.use_energy.value
+
+    for _, entity_data in pairs(self.entities) do
+        if entity_data and entity_data.entity and entity_data.entity.valid then
+            if Constants.DISTRIBUTABLE_TYPES[entity_data.type] then
+                entity_data.distribute_index = self:GetDistributeIndex()
+            end
+        end
+    end
+end
+
 function Network:ResolveEntityType(entity)
     if not entity or not entity.valid then
         return nil
@@ -184,6 +198,14 @@ function Network:CalculateUsage(depth)
     end
 end
 
+function Network:AttachEntities(server, entities)
+    self:ResetEntities()
+    self.storage.server = server
+    for _, entity in pairs(entities) do
+        self:AttachEntity(entity)
+    end
+end
+
 function Network:AttachEntity(entity)
     if not entity or not entity.valid then
         return
@@ -197,10 +219,6 @@ function Network:AttachEntity(entity)
 
     if not type then
         return
-    end
-
-    if type == Constants.TYPE.SERVER then
-        self.storage.server = entity
     end
 
     self.storage.typed_entities[type] = self.storage.typed_entities[type] or {}

@@ -46,6 +46,23 @@ function VirtualInventory:ClearInvalidData()
     end
 end
 
+function VirtualInventory:Merge(virtual_inventory)
+    for name, qualities in pairs(virtual_inventory.items) do
+        for quality, amount in pairs(qualities) do
+            if amount > 0 then
+                self:InsertItem(name, amount, quality)
+            end
+        end
+    end
+    for name, temperatures in pairs(virtual_inventory.fluids) do
+        for temperature, amount in pairs(temperatures) do
+            if amount > 0 then
+                self:InsertFluid(name, amount, temperature)
+            end
+        end
+    end
+end
+
 function VirtualInventory:PrepareFluidsStorage()
     for name, fluid in pairs(prototypes.fluid) do
         if not self.fluids[name] then
@@ -253,7 +270,7 @@ end
 
 function VirtualInventory:InsertFluid(name, amount, temperature)
     temperature = self:ParseTemperature(name, temperature)
-    self.fluids[name][temperature] = amount + self.fluids[name][temperature]
+    self.fluids[name][temperature] = amount + (self.fluids[name][temperature] or 0)
     self:UpdateFluidSignal(name)
     return self
 end
