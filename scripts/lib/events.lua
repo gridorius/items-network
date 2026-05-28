@@ -25,7 +25,10 @@ function Events:UseTick(...)
 end
 
 function Events:on_event(name, event)
-    for handler_id, handler_data in pairs(self.handlers) do
+    local handler_ids = Gridorius.GetSortedKeys(self.handlers)
+    for i = 1, #handler_ids do
+        local handler_id = handler_ids[i]
+        local handler_data = self.handlers[handler_id]
         if handler_data.events[name] then
             handler_data.events[name](event, handler_id)
             if handler_data.single then
@@ -37,7 +40,10 @@ end
 
 function Events:on_nth_tick_event(tick, event)
     if self.nth_tick_handlers[tick] then
-        for id, handler_data in pairs(self.nth_tick_handlers[tick]) do
+        local handler_ids = Gridorius.GetSortedKeys(self.nth_tick_handlers[tick])
+        for i = 1, #handler_ids do
+            local id = handler_ids[i]
+            local handler_data = self.nth_tick_handlers[tick][id]
             handler_data.handler(event, id)
             if handler_data.single then
                 self.nth_tick_handlers[tick][id] = nil
@@ -104,10 +110,8 @@ function Events:On(event_name, handler, single)
     return handler_id
 end
 
-function Events:Remove(event, id)
-    if self.handlers[event] and self.handlers[event][id] then
-        self.handlers[event][id] = nil
-    end
+function Events:Remove(id)
+    self.handlers[id] = nil
 end
 
 function Events:RemoveNthTickEvent(tick, id)

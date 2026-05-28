@@ -1,5 +1,6 @@
 local Network = require("scripts.network")
 local Constants = require("scripts.constants")
+
 local function get_entity_from_event(event)
     return event.entity or event.created_entity or event.destination
 end
@@ -420,7 +421,9 @@ function NetworkSystem:RebuildSystemNetworks(system_id)
 
     local main_network = nil
     local main_server = nil
-    for _, server in pairs(servers) do
+    local server_unit_numbers = Gridorius.GetSortedKeys(servers)
+    for i = 1, #server_unit_numbers do
+        local server = servers[server_unit_numbers[i]]
         local network_id = storage.servers[server.unit_number].network_id
         local network = self.networks[network_id]
         if not main_network then
@@ -543,8 +546,26 @@ function NetworkSystem:DestroyServer(entity)
 
         local inventory = chest.get_inventory(defines.inventory.chest)
         if inventory and inventory.valid then
+            local item_names = {}
             for name, tiers in pairs(network.inventory.items) do
+                if tiers then
+                    item_names[#item_names + 1] = name
+                end
+            end
+            table.sort(item_names)
+            for i = 1, #item_names do
+                local name = item_names[i]
+                local tiers = network.inventory.items[name]
+                local tier_names = {}
                 for tier, count in pairs(tiers) do
+                    if count and count > 0 then
+                        tier_names[#tier_names + 1] = tier
+                    end
+                end
+                table.sort(tier_names)
+                for j = 1, #tier_names do
+                    local tier = tier_names[j]
+                    local count = tiers[tier]
                     if count > 0 then
                         inventory.insert { name = name, quality = tier, count = count }
                     end

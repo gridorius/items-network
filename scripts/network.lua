@@ -21,7 +21,7 @@ function Network:new(network_id)
     self.renders = {}
 
 
-    Gridorius.Events:On(defines.events.on_selected_entity_changed, function(event)
+    self.selected_handler_id = Gridorius.Events:On(defines.events.on_selected_entity_changed, function(event)
         if not self.storage.use_energy then
             return
         end
@@ -67,8 +67,10 @@ function Network:RenderRadius(radius, color)
 end
 
 function Network:Destroy()
+    Gridorius.Events:Remove(self.selected_handler_id)
     storage.networks[self.id] = nil
     self.inventory:Destroy()
+    game.print("Network " .. self.id .. " destroyed")
 end
 
 function Network:InitStorage(network_id)
@@ -116,11 +118,12 @@ end
 
 function Network:SetTerminalsSignals()
     local terminals = self:GetTypeEntities(Constants.TYPE.TERMINAL)
-    for _, terminal in pairs(terminals) do
+    local filters = self.inventory:GetSignalFilters()
+    for _, terminal in ipairs(terminals) do
         if terminal and terminal.valid then
             local control = terminal.get_or_create_control_behavior()
             if control and control.valid then
-                control.get_section(1).filters = self.inventory.signals
+                control.get_section(1).filters = filters
             end
         end
     end
@@ -137,15 +140,12 @@ end
 function Network:GetTypeEntities(type, distribute_index)
     local result = {}
 
-    if not distribute_index then
-        for unit_number, entity_data in pairs(self.storage.typed_entities[type] or {}) do
-            result[unit_number] = entity_data.entity
-        end
-    end
-
-    for unit_number, entity_data in pairs(self.storage.typed_entities[type] or {}) do
-        if entity_data.distribute_index == distribute_index then
-            result[unit_number] = entity_data.entity
+    local entity_data_by_unit = self.storage.typed_entities[type] or {}
+    local unit_numbers = Gridorius.GetSortedKeys(entity_data_by_unit)
+    for i = 1, #unit_numbers do
+        local entity_data = entity_data_by_unit[unit_numbers[i]]
+        if entity_data and (not distribute_index or entity_data.distribute_index == distribute_index) then
+            result[#result + 1] = entity_data.entity
         end
     end
     return result
@@ -190,7 +190,9 @@ function Network:OnChangeSettings()
     self.storage.distribute_current = settings.global.network_machines_per_tick.value
     self.storage.use_energy = settings.global.use_energy.value
 
-    for _, entity_data in pairs(self.entities) do
+    local entities = Gridorius.GetSortedValues(self.entities)
+    for i = 1, #entities do
+        local entity_data = entities[i]
         if entity_data and entity_data.entity and entity_data.entity.valid then
             if Constants.DISTRIBUTABLE_TYPES[entity_data.type] then
                 entity_data.distribute_index = self:GetDistributeIndex()
@@ -253,8 +255,9 @@ end
 function Network:AttachEntities(server, entities)
     self:ResetEntities()
     self.storage.server = server
-    for _, entity in pairs(entities) do
-        self:AttachEntity(entity)
+    local ordered_entities = Gridorius.GetSortedValues(entities)
+    for i = 1, #ordered_entities do
+        self:AttachEntity(ordered_entities[i])
     end
 end
 
@@ -354,7 +357,7 @@ end
 
 function Network:ProcessProductionCombinators()
     local combinators = self:GetTypeEntities(Constants.TYPE.PRODUCTION_COMBINATOR)
-    for _, combinator in pairs(combinators) do
+    for _, combinator in ipairs(combinators) do
         if combinator and combinator.valid then
             local control = combinator.get_or_create_control_behavior()
             local signals = {}
@@ -362,7 +365,9 @@ function Network:ProcessProductionCombinators()
                 production = {}
             }).production
 
-            for _, prod in pairs(production) do
+            local production_indexes = Gridorius.GetSortedKeys(production)
+            for i = 1, #production_indexes do
+                local prod = production[production_indexes[i]]
                 if prod.item then
                     local quality = prod.quality or "normal"
                     local inventory_amount = self.inventory:GetItemCount(prod.item, quality)
@@ -385,7 +390,7 @@ end
 
 function Network:ProcessTurrets()
     local turrets = self:GetTypeEntities(Constants.TYPE.TURRET)
-    for _, turret in pairs(turrets) do
+    for _, turret in ipairs(turrets) do
         if turret and turret.valid then
             local inventory = nil
             if turret.type == Constants.AMMO_TURRET_TYPE then
@@ -404,7 +409,7 @@ end
 function Network:ProcessMachinesItems(distribute_index)
     local machines = self:GetTypeEntities(Constants.TYPE.MACHINE, distribute_index)
 
-    for _, machine in pairs(machines) do
+    for _, machine in ipairs(machines) do
         -- self.combined_inventory:ProcessMachineItems(machine, self.storage.use_fuels)
         self.inventory:ProcessMachineItems(machine, self.storage.use_fuels)
     end
@@ -413,14 +418,14 @@ end
 function Network:ProcessMachinesFluids(distribute_index)
     local machines = self:GetTypeEntities(Constants.TYPE.MACHINE, distribute_index)
 
-    for _, machine in pairs(machines) do
+    for _, machine in ipairs(machines) do
         self.inventory:ProcessMachineFluids(machine)
     end
 end
 
 function Network:CollectChests(distribute_index)
     local chests = self:GetTypeEntities(Constants.TYPE.CHEST, distribute_index)
-    for _, chest in pairs(chests) do
+    for _, chest in ipairs(chests) do
         if chest and chest.valid then
             self.inventory:CollectInventory(chest.get_inventory(defines.inventory.chest))
         end
@@ -429,7 +434,7 @@ end
 
 function Network:FillFluidOutputs(distribute_index)
     local output_pipes = self:GetTypeEntities(Constants.TYPE.FLUID_OUTPUT, distribute_index)
-    for _, pipe in pairs(output_pipes) do
+    for _, pipe in ipairs(output_pipes) do
         if pipe and pipe.valid then
             local pipe_data = Gridorius.GetMetadata(pipe)
             if pipe_data and pipe_data.fluid_name and pipe_data.temperature then
@@ -466,7 +471,7 @@ end
 
 function Network:CollectFluidInputs(distribute_index)
     local input_pipes = self:GetTypeEntities(Constants.TYPE.FLUID_INPUT, distribute_index)
-    for _, pipe in pairs(input_pipes) do
+    for _, pipe in ipairs(input_pipes) do
         if pipe and pipe.valid then
             self.inventory:CollectFluidbox(pipe)
         end
@@ -475,7 +480,7 @@ end
 
 function Network:ProcessBufferChests(distribute_index)
     local buffer_chests = self:GetTypeEntities(Constants.TYPE.BUFFER_CHEST, distribute_index)
-    for _, chest in pairs(buffer_chests) do
+    for _, chest in ipairs(buffer_chests) do
         if chest and chest.valid then
             self.inventory:ProcessBufferChest(chest)
         end

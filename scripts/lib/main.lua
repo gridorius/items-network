@@ -12,10 +12,16 @@ Gridorius = {
     Dictionary = require("scripts.lib.dictionary"),
     Inventory = require("scripts.lib.inventory"),
     Events = Events:new(),
+    translation = {},
     nth_tick = function(tick_num)
         return game.tick % tick_num == 0
     end
 }
+
+function Gridorius.GetTranslation(player_index, prototype_name)
+    local player_translation = Gridorius.translation[player_index]
+    return player_translation or prototype_name
+end
 
 Gridorius.insert_fluid = function(fluidbox, fluid, index, max_insert)
     local current_fluid = fluidbox[index]
@@ -115,10 +121,22 @@ function Gridorius:InitGui()
     self.Gui = Gui:new()
 end
 
-function Gridorius.split(str, delimiter)
+function Gridorius.GetSortedKeys(values)
+    local keys = {}
+    for key, value in pairs(values or {}) do
+        if value ~= nil then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys)
+    return keys
+end
+
+function Gridorius.GetSortedValues(values)
     local result = {}
-    for match in (str .. delimiter):gmatch("(.-)" .. delimiter) do
-        table.insert(result, match)
+    local keys = Gridorius.GetSortedKeys(values)
+    for i = 1, #keys do
+        result[i] = values[keys[i]]
     end
     return result
 end

@@ -21,8 +21,11 @@ Gridorius.Events:UseEvents(table.unpack(Constants.BUILD_EVENTS))
 Gridorius.Events:UseEvents(table.unpack(Constants.MINING_EVENTS))
 Gridorius.Events:UseTick(1, 10, 60)
 
-local function request_translations()
-    storage.translation = {}
+local function request_translations(player)
+    if not (player and player.valid) then
+        return
+    end
+
     local localised_strings = {}
     for _, item in pairs(prototypes.item) do
         if item.localised_name and item.localised_name ~= "" then
@@ -34,23 +37,27 @@ local function request_translations()
             table.insert(localised_strings, fluid.localised_name)
         end
     end
-    storage.translation_initialized = true
-    game.connected_players[1].request_translations(localised_strings)
+
+    Gridorius.translation[player.index] = {}
+    player.request_translations(localised_strings)
 end
 
 local function on_string_translated(event)
-    if storage.translation_initialized and event.translated and event.result and event.localised_string and event.localised_string[1] then
-        storage.translation = storage.translation or {}
+    if event.translated and event.result and event.localised_string and event.localised_string[1] then
+        Gridorius.translation[event.player_index] = Gridorius.translation[event.player_index] or {}
         local item_name = util.split(event.localised_string[1], ".")[2]
         if item_name then
-            storage.translation[item_name] = event.result
+            Gridorius.translation[event.player_index][item_name] = event.result
         else
-            storage.translation[event.localised_string[1]] = event.result
+            Gridorius.translation[event.player_index][event.localised_string[1]] = event.result
         end
     end
 end
 
 Gridorius.Events:On(defines.events.on_string_translated, on_string_translated)
+Gridorius.Events:On(defines.events.on_player_joined_game, function(event)
+    request_translations(game.get_player(event.player_index))
+end)
 Gridorius:InitGui()
 local TerminalGui = require("scripts.terminal_gui")
 
@@ -62,7 +69,6 @@ script.on_event(
     }
     , function()
         Gridorius.init()
-        request_translations()
         local network_system = NetworkSystem:new()
         Gridorius.state:set("network_system", network_system)
         TerminalGui.BindInterfaces()

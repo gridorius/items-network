@@ -78,20 +78,25 @@ function VirtualInventory:PrepareFluidsStorage()
     end
 end
 
+function VirtualInventory:FillItemQuality(name)
+    if prototypes.quality then
+        for quality, _ in pairs(prototypes.quality) do
+            if not self.items[name][quality] then
+                self.items[name][quality] = 0
+            end
+        end
+    end
+end
+
 function VirtualInventory:PrepareItemsStorage()
     for name, item in pairs(prototypes.item) do
         if not self.items[name] then
             self.items[name] = {
                 ["normal"] = 0
             }
+            self:FillItemQuality(name)
         else
-            if prototypes.quality then
-                for quality, _ in pairs(prototypes.quality) do
-                    if not self.items[name][quality] then
-                        self.items[name][quality] = 0
-                    end
-                end
-            end
+            self:FillItemQuality(name)
         end
     end
 end
@@ -211,6 +216,15 @@ function VirtualInventory:BuildSignals()
             }
         end
     end
+end
+
+function VirtualInventory:GetSignalFilters()
+    local filters = {}
+    local signal_names = Gridorius.GetSortedKeys(self.signals)
+    for i = 1, #signal_names do
+        filters[i] = self.signals[signal_names[i]]
+    end
+    return filters
 end
 
 function VirtualInventory:UpdateItemSignal(name, count, quality)
@@ -426,12 +440,11 @@ function VirtualInventory:ProcessTurret(inventory, use_ammo)
         return
     end
 
-    for ammo_name, use in pairs(use_ammo) do
-        if use then
-            local moved = self:MoveToInventory({ name = ammo_name }, 10, inventory)
-            if moved > 0 then
-                break
-            end
+    local ammo_names = Gridorius.GetSortedKeys(use_ammo)
+    for i = 1, #ammo_names do
+        local moved = self:MoveToInventory({ name = ammo_names[i] }, 10, inventory)
+        if moved > 0 then
+            break
         end
     end
 end
@@ -450,36 +463,28 @@ function VirtualInventory:ProcessMachineFluids(machine)
     end
 
     local recipe = machine.get_recipe()
-    local fluids_to_insert = {}
-
     -- handle recipe
     if recipe and machine.active then
-        for _, ingredient in pairs(recipe.ingredients) do
+        local insert_index = 1
+        for _, ingredient in ipairs(recipe.ingredients) do
             if ingredient.type == "fluid" and fluidbox then
                 local fluid_name = ingredient.name
                 local fluid_temperature = ingredient.temperature
                 local inventory_amount = self:GetFluidAmount(fluid_name, fluid_temperature)
-                fluids_to_insert[fluid_name] = {
-                    temperature = fluid_temperature,
-                    amount = math.min(inventory_amount, self.insert_fluid_per_operation)
-                }
+                local amount = math.min(inventory_amount, self.insert_fluid_per_operation)
+                local inserted = Gridorius.insert_fluid(fluidbox,
+                    { name = fluid_name, amount = amount, temperature = fluid_temperature }, insert_index, amount)
+                if inserted > 0 then
+                    self:RemoveFluid(fluid_name, inserted, fluid_temperature)
+                end
+                insert_index = insert_index + 1
             end
         end
     end
 
-    local insert_index = 1
-    for name, data in pairs(fluids_to_insert) do
-        local inserted = Gridorius.insert_fluid(fluidbox,
-            { name = name, amount = data.amount, temperature = data.temperature }, insert_index, data.amount)
-        if inserted > 0 then
-            self:RemoveFluid(name, inserted, data.temperature)
-        end
-        insert_index = insert_index + 1
-    end
-
     -- collect fluid products
     if recipe and fluidbox then
-        for _, product in pairs(recipe.products) do
+        for _, product in ipairs(recipe.products) do
             if product.type == "fluid" then
                 for i = 1, #fluidbox do
                     local fluid = fluidbox[i]
@@ -511,7 +516,7 @@ function VirtualInventory:ProcessMachineItems(machine, use_fuels)
 
         -- handle recipe
         if recipe and machine.active and input_inventory then
-            for _, ingredient in pairs(recipe.ingredients) do
+            for _, ingredient in ipairs(recipe.ingredients) do
                 if ingredient.type == "item" then
                     local ingredient_quality = recipe_quality
                     if not input_inventory.can_insert(ingredient.name) then
@@ -533,10 +538,9 @@ function VirtualInventory:ProcessMachineItems(machine, use_fuels)
 
         -- handle fuels
         if machine.active and burner and fuel_inventory and fuel_inventory.is_empty() and burner.remaining_burning_fuel < 100 then
-            for fuel_name, use in pairs(use_fuels) do
-                if use then
-                    self:MoveToInventory({ name = fuel_name }, 2, fuel_inventory)
-                end
+            local fuel_names = Gridorius.GetSortedKeys(use_fuels)
+            for i = 1, #fuel_names do
+                self:MoveToInventory({ name = fuel_names[i] }, 2, fuel_inventory)
             end
         end
 

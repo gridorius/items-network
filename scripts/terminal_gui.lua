@@ -1,5 +1,5 @@
 local Gui = Gridorius.Gui
-local Constants = require("constants")
+local Constants = require("scripts.constants")
 Gui:AddStylesheet({
 	spacing_5 = {
 		horizontal_spacing = 5,
@@ -205,8 +205,8 @@ function TerminalGui.render_group_data(player, data_table)
 		if search_text and search_text ~= "" then
 			fluids = {}
 			for name, fluid in pairs(prototypes.fluid) do
-				local localised_name = storage.translation[fluid.name] or fluid.name
-				if fluid.name:find(search_text) or localised_name:find(search_text) then
+				local translation = Gridorius.GetTranslation(player, fluid.name)
+				if translation:find(search_text) then
 					fluids[name] = fluid
 				end
 			end
@@ -219,7 +219,7 @@ function TerminalGui.render_group_data(player, data_table)
 	local current_group_items = {}
 	for name, item in pairs(items) do
 		if item.group.name == current_group then
-			if search_text and search_text ~= "" and not string.find(storage.translation[item.name] or item.name, search_text) then
+			if search_text and search_text ~= "" and not string.find(Gridorius.GetTranslation(player, item.name), search_text) then
 				goto continue
 			end
 			if not current_group_items[item.subgroup.name] then
@@ -503,8 +503,8 @@ function TerminalGui.RenderItemLimitsScroll(player, scroll, search)
 	else
 		for i, item_limit in pairs(network.storage.item_limits) do
 			if item_limit.item and prototypes.item[item_limit.item] then
-				local localised_name = storage.translation[item_limit.item] or item_limit.item
-				if item_limit.item:find(search) or localised_name:find(search) then
+				local translation = Gridorius.GetTranslation(player, item_limit.item)
+				if translation:find(search) then
 					local flow, line = TerminalGui.CreateLimitRow(item_limit, i)
 					Gui:RenderElements(player, scroll, flow, line)
 				end
@@ -529,8 +529,8 @@ function TerminalGui.RenderProductionScroll(player, scroll, search)
 	else
 		for i, item_production in pairs(combinator_settings.production) do
 			if item_production.item and prototypes.item[item_production.item] then
-				local localised_name = storage.translation[item_production.item] or item_production.item
-				if item_production.item:find(search) or localised_name:find(search) then
+				local translation = Gridorius.GetTranslation(player, item_production.item)
+				if translation:find(search) then
 					local flow, line = TerminalGui.CreateProductionRow(item_production, i)
 					Gui:RenderElements(player, scroll, flow, line)
 				end
