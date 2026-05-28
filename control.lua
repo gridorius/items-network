@@ -12,7 +12,9 @@ Gridorius.Events:UseEvents(
     defines.events.on_runtime_mod_setting_changed,
     defines.events.on_gui_elem_changed,
     defines.events.on_gui_text_changed,
-    defines.events.on_string_translated
+    defines.events.on_string_translated,
+    defines.events.on_player_joined_game,
+    defines.events.on_selected_entity_changed
 );
 
 Gridorius.Events:UseEvents(table.unpack(Constants.BUILD_EVENTS))
@@ -52,13 +54,28 @@ Gridorius.Events:On(defines.events.on_string_translated, on_string_translated)
 Gridorius:InitGui()
 local TerminalGui = require("scripts.terminal_gui")
 
-Gridorius.Events:OnNthTick(10, function(event, handler_id)
-    if game then
+
+script.on_event(
+    {
+        defines.events.on_singleplayer_init,
+        defines.events.on_multiplayer_init
+    }
+    , function()
         Gridorius.init()
         request_translations()
         local network_system = NetworkSystem:new()
         Gridorius.state:set("network_system", network_system)
         TerminalGui.BindInterfaces()
-        Gridorius.Events:RemoveNthTickEvent(10, handler_id)
     end
-end)
+)
+
+-- Gridorius.Events:OnNthTick(10, function(event, handler_id)
+--     if game then
+--         Gridorius.init()
+--         request_translations()
+--         local network_system = NetworkSystem:new()
+--         Gridorius.state:set("network_system", network_system)
+--         TerminalGui.BindInterfaces()
+--         Gridorius.Events:RemoveNthTickEvent(10, handler_id)
+--     end
+-- end)

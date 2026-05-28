@@ -18,8 +18,52 @@ function Network:new(network_id)
     self.working = true
 
     self.servers = storage.servers
+    self.renders = {}
+
+
+    Gridorius.Events:On(defines.events.on_selected_entity_changed, function(event)
+        if not self.storage.use_energy then
+            return
+        end
+        local player = game.get_player(event.player_index)
+        local selected = player and player.selected
+        if selected and selected.unit_number == self.storage.server.unit_number then
+            self:RenderRadius(80, { 0.07165, 0.16, 0.03665, 0.1 })
+            self:RenderRadius(150, { 0.15, 0.12165, 0.02165, 0.1 })
+            self:RenderRadius(200, { 0.13, 0.04835, 0.00665, 0.1 })
+            self:RenderRadius(250, { 0.145, 0, 0, 0.1 })
+        elseif #self.renders > 0 then
+            for _, render in pairs(self.renders) do
+                render.destroy()
+            end
+            self.renders = {}
+        end
+    end)
 
     return self
+end
+
+function Network:RenderRadius(radius, color)
+    local radius_game = rendering.draw_circle {
+        color = color,
+        radius = radius,
+        target = self.storage.server,
+        surface = self.storage.server.surface,
+        filled = true,
+        draw_on_ground = true,
+    }
+
+    local radius_chart = rendering.draw_circle {
+        color = color,
+        radius = radius,
+        target = self.storage.server,
+        surface = self.storage.server.surface,
+        filled = true,
+        render_mode = "chart"
+    }
+
+    table.insert(self.renders, radius_game)
+    table.insert(self.renders, radius_chart)
 end
 
 function Network:Destroy()
@@ -186,13 +230,21 @@ function Network:GetDistributeIndex()
     return index
 end
 
-function Network:CalculateUsage(depth)
-    if depth <= 40 then
-        return 50
-    elseif depth <= 80 then
-        return 200
-    elseif depth <= 120 then
-        return depth * 10
+function Network:VatToJoules(v)
+    return math.floor(v / 60)
+end
+
+function Network:CalculateUsage(entity)
+    local server = self.storage.server
+    local depth = math.sqrt((entity.position.x - server.position.x) ^ 2 + (entity.position.y - server.position.y) ^ 2)
+    if depth <= 80 then
+        return Network:VatToJoules(2000)
+    elseif depth <= 150 then
+        return Network:VatToJoules(4000)
+    elseif depth <= 200 then
+        return Network:VatToJoules(16000)
+    elseif depth <= 250 then
+        return depth * 8
     else
         return depth * 100
     end
@@ -230,8 +282,7 @@ function Network:AttachEntity(entity)
     self.storage.typed_entities[type][entity.unit_number] = self.entities[entity.unit_number]
 
     if Constants.CABLE_ENTITIES[entity.name] then
-        local depth = Gridorius.GetMetadata(entity).depth or 0
-        self.power_usage = self.power_usage + self:CalculateUsage(depth)
+        self.power_usage = self.power_usage + self:CalculateUsage(entity)
     end
 
     -- if Constants.ABSORBABLE_CHEST_TYPES[entity.type] then
@@ -244,14 +295,14 @@ function Network:AttachEntity(entity)
     end
 end
 
-function Network:ProcessPlayers(server)
+function Network:ProcessPlayers()
     if not game.forces.player.technologies['network-player-supply'].researched then
         return
     end
 
     for i = 1, #game.players do
         local player = game.players[i]
-        if player and player.valid and player.surface.index == server.surface.index then
+        if player and player.valid and player.surface.index == self.storage.server.surface.index then
             self.inventory:ProcessPlayer(player)
         end
     end
@@ -284,6 +335,7 @@ function Network:OnTick()
         self:SetTerminalsSignals()
         self:ProcessTurrets()
         self:ProcessProductionCombinators()
+        self:ProcessPlayers()
     end
 
     local distribute_max = self.storage.distribute_index + 1

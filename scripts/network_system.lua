@@ -29,6 +29,7 @@ function NetworkSystem:new()
     self:InitNetworks()
     self:RebuildEnergyInterfaces()
     self:RebuildPowerPoles()
+    self:RebuildAllSystems()
     Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
     Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
     Gridorius.Events:On(defines.events.on_research_finished, function(event)
@@ -46,6 +47,7 @@ function NetworkSystem:new()
             end
         end
     end)
+
     return self
 end
 
@@ -90,11 +92,17 @@ function NetworkSystem:BuilCableSystems()
         for _, cable in pairs(cables) do
             if not self.cables[cable.unit_number] then
                 self:HandleNewCable(cable)
-                self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
-            else
-                self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
+                -- self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
+                -- else
+                -- self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
             end
         end
+    end
+end
+
+function NetworkSystem:RebuildAllSystems()
+    for system_id, _ in pairs(storage.cable_systems) do
+        self:RebuildSystemNetworks(system_id)
     end
 end
 
@@ -214,7 +222,7 @@ function NetworkSystem:ConnectCableSystem(cable, system_id, visited, system)
     if not system then
         system = {}
     end
-    self:RenderDebugCableSystem(cable, system_id)
+    -- self:RenderDebugCableSystem(cable, system_id)
     visited[cable.unit_number] = true
     system[cable.unit_number] = cable
     self.cables[cable.unit_number].system_id = system_id
@@ -369,27 +377,45 @@ function NetworkSystem:RebuildSystemNetworks(system_id)
     end
 
     local connected = {}
+    local server_connectors = {}
     local connectors = {}
     local servers = {}
 
-    for _, cable in pairs(system) do
-        if cable and cable.valid and cable.name == Constants.CONNECTOR_NAME then
-            connectors[#connectors + 1] = cable
-            local metadata = Gridorius.GetMetadata(cable)
-            if metadata then
-                metadata.render.color = { 0, 0, 1 }
-                if metadata.connected and metadata.connected.valid then
-                    if metadata.connected.name == Constants.SERVER_NAME then
-                        servers[metadata.connected.unit_number] = metadata.connected
+    local has_invalids = false
+
+    for unit_number, cable in pairs(system) do
+        if cable.valid then
+            connected[cable.unit_number] = cable
+            if cable and cable.valid and cable.name == Constants.CONNECTOR_NAME then
+                connectors[#connectors + 1] = cable
+                local metadata = Gridorius.GetMetadata(cable)
+                if metadata then
+                    metadata.render.color = { 0, 0, 1 }
+                    if metadata.connected and metadata.connected.valid then
+                        if metadata.connected.name == Constants.SERVER_NAME then
+                            servers[metadata.connected.unit_number] = metadata.connected
+                            server_connectors[metadata.connected.unit_number] = cable
+                        end
+                        connected[metadata.connected.unit_number] = metadata.connected
                     end
-                    connected[metadata.connected.unit_number] = metadata.connected
                 end
+            end
+        else
+            has_invalids = true
+            system[unit_number] = nil
+            for un, value in pairs(self.cables[unit_number].neighbours) do
+                self.cables[un].neighbours[unit_number] = nil
             end
         end
     end
 
-    if #servers == 0 then
-         return
+    if has_invalids then
+        self:RecalculateCableSystem(system_id)
+        return
+    end
+
+    if next(servers) == nil then
+        return
     end
 
     local main_network = nil
@@ -412,6 +438,7 @@ function NetworkSystem:RebuildSystemNetworks(system_id)
     if not main_network then
         return
     end
+
 
     for _, cable in pairs(connectors) do
         local metadata = Gridorius.GetMetadata(cable)
