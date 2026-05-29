@@ -167,15 +167,18 @@ function NetworkSystem:HandleNewCable(cable)
 
     if system_count == 1 then
         self:SetCableSystem(cable, first_system)
+        return first_system
     elseif system_count > 1 then
         self:SetCableSystem(cable, first_system)
         system_id = cable.unit_number;
         self:MergeCableSystems(system_id, systems)
         self:RebuildSystemNetworks(system_id)
+        return system_id
     else
         self.cable_systems[system_id] = {
             [cable.unit_number] = cable
         }
+        return system_id
     end
 end
 
@@ -605,13 +608,15 @@ function NetworkSystem:HandleBuildEntity(event)
         game.print({ "message.items-network-built-network", new_network_id })
     end
 
+    local connected_entity = nil
     if entity.name == Constants.CONNECTOR_NAME then
         local connected = self:FindSupportedEntities(entity)
         local metadata = {
             render = self:RenderConnectorIndicator(entity),
         }
         if #connected > 0 then
-            metadata.connected = connected[1]
+            connected_entity = connected[1]
+            metadata.connected = connected_entity
         end
         Gridorius.AddMetadata(entity, metadata)
     else
@@ -636,7 +641,10 @@ function NetworkSystem:HandleBuildEntity(event)
     end
 
     if Constants.CABLE_ENTITIES[entity.name] then
-        self:HandleNewCable(entity)
+        local system_id = self:HandleNewCable(entity)
+        if connected_entity then
+            self:RebuildSystemNetworks(system_id)
+        end
     end
 end
 
