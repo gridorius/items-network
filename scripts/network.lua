@@ -19,6 +19,7 @@ function Network:new(network_id)
 
     self.servers = storage.servers
     self.renders = {}
+    self.server_render = nil
 
 
     self.selected_handler_id = Gridorius.Events:On(defines.events.on_selected_entity_changed, function(event)
@@ -27,7 +28,7 @@ function Network:new(network_id)
         end
         local player = game.get_player(event.player_index)
         local selected = player and player.selected
-        if selected and selected.unit_number == self.storage.server.unit_number then
+        if selected and self.storage.server and selected.unit_number == self.storage.server.unit_number then
             self:RenderRadius(80, { 0.07165, 0.16, 0.03665, 0.1 })
             self:RenderRadius(150, { 0.15, 0.12165, 0.02165, 0.1 })
             self:RenderRadius(200, { 0.13, 0.04835, 0.00665, 0.1 })
@@ -252,6 +253,22 @@ function Network:CalculateUsage(entity)
     end
 end
 
+function Network:UpdateServerRender(server, active)
+    if active and self.server_render then
+        self.server_render.destroy()
+        self.server_render = nil
+    end
+
+    if not active and not self.server_render then
+        self.server_render = rendering.draw_text {
+            color = { 1, 0, 0 },
+            target = {server.position.x - 1, server.position.y},
+            surface = server.surface,
+            text = "NO POWER"
+        }
+    end
+end
+
 function Network:AttachEntities(server, entities)
     self:ResetEntities()
     self.storage.server = server
@@ -330,9 +347,11 @@ function Network:OnTick()
 
     if self.storage.use_energy and interface.energy == 0 then
         self.working = false
+        self:UpdateServerRender(self.storage.server, false)
         return
     end
     self.working = true
+    self:UpdateServerRender(self.storage.server, true)
 
     if Gridorius.nth_tick(60) then
         self:SetTerminalsSignals()

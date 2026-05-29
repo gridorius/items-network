@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.10.0
+Date: 29.05.2026
+  Features:
+    - when hovering over the server, the power consumption boost radius is shown
+  Changes:
+    - the network construction system has been changed
+    - the minimum network processing cycle is set to 30 ticks
+  Bugfixes:
+    - attempt to fix desynchronization in multiplayer
+    - fixed supply of players
+    - fixed premature unlocking of network conductivity
+---------------------------------------------------------------------------------------------------
 Version: 1.9.6
 Date: 27.05.2026
   Bugfixes:
