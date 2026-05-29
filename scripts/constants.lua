@@ -7,6 +7,8 @@ local Constants = {
     HIDDEN_POWER_POLE_NAME = "network-hidden-power-pole",
     POWER_TECH_NAME = "network-power-conductivity",
     TERMINAL_NAME = "network-terminal",
+    INSERTER_NAME = "network-inserter",
+    BULK_INSERTER_NAME = "network-bulk-inserter",
     BUFFER_CHEST_NAME = "network-buffer-chest",
     FLUID_INPUT = "network-fluid-input",
     FLUID_OUTPUT = "network-fluid-output",
@@ -32,6 +34,7 @@ local Constants = {
     TYPE = {
         SERVER = "server",
         TERMINAL = "terminal",
+        INSERTER = "inserter",
         BUFFER_CHEST = "buffer_chest",
         FLUID_INPUT = "fluid_input",
         FLUID_OUTPUT = "fluid_output",
@@ -67,11 +70,14 @@ Constants.DISTRIBUTABLE_TYPES = {
     [Constants.TYPE.FLUID_INPUT] = true,
     [Constants.TYPE.FLUID_OUTPUT] = true,
     [Constants.TYPE.BUFFER_CHEST] = true,
+    [Constants.TYPE.INSERTER] = true,
 }
 
 Constants.ENTITY_TYPES_MAP = {
     [Constants.SERVER_NAME] = Constants.TYPE.SERVER,
     [Constants.TERMINAL_NAME] = Constants.TYPE.TERMINAL,
+    [Constants.INSERTER_NAME] = Constants.TYPE.INSERTER,
+    [Constants.BULK_INSERTER_NAME] = Constants.TYPE.INSERTER,
     [Constants.BUFFER_CHEST_NAME] = Constants.TYPE.BUFFER_CHEST,
     [Constants.FLUID_INPUT] = Constants.TYPE.FLUID_INPUT,
     [Constants.FLUID_OUTPUT] = Constants.TYPE.FLUID_OUTPUT,
@@ -91,6 +97,8 @@ Constants.SUPPORTED_ENTITIES = {
     [Constants.CONNECTOR_NAME] = true,
     [Constants.SERVER_NAME] = true,
     [Constants.TERMINAL_NAME] = true,
+    [Constants.INSERTER_NAME] = true,
+    [Constants.BULK_INSERTER_NAME] = true,
     [Constants.BUFFER_CHEST_NAME] = true,
     [Constants.FLUID_INPUT] = true,
     [Constants.FLUID_OUTPUT] = true,
@@ -119,6 +127,8 @@ Constants.SUPPORTED_ENTITY_TYPES = {}
 Constants.SUPPORTED_ENTITY_NAMES = {
     Constants.SERVER_NAME,
     Constants.TERMINAL_NAME,
+    Constants.INSERTER_NAME,
+    Constants.BULK_INSERTER_NAME,
     Constants.BUFFER_CHEST_NAME,
     Constants.FLUID_INPUT,
     Constants.FLUID_OUTPUT,

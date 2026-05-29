@@ -262,7 +262,7 @@ function Network:UpdateServerRender(server, active)
     if not active and not self.server_render then
         self.server_render = rendering.draw_text {
             color = { 1, 0, 0 },
-            target = {server.position.x - 1, server.position.y},
+            target = { server.position.x - 1, server.position.y },
             surface = server.surface,
             text = "NO POWER"
         }
@@ -361,6 +361,7 @@ function Network:OnTick()
     end
 
     local distribute_max = self.storage.distribute_index + 1
+
     if distribute_max < 30 then
         distribute_max = 30
     end
@@ -371,7 +372,98 @@ function Network:OnTick()
     self:FillFluidOutputs(distribute_index)
     self:ProcessMachinesItems(distribute_index)
     self:ProcessMachinesFluids(distribute_index)
+    self:ProcessInserters(distribute_index)
     self:ProcessBufferChests(distribute_index)
+end
+
+function Network:GetInserterFilters(inserter)
+    local filters = {}
+    if not (inserter and inserter.valid and inserter.filter_slot_count and inserter.filter_slot_count > 0) then
+        return filters
+    end
+
+    for slot = 1, inserter.filter_slot_count do
+        local filter = inserter.get_filter(slot)
+        if filter then
+            local filter_data = nil
+            if type(filter) == "table" then
+                if filter.name then
+                    filter_data = {
+                        name = filter.name,
+                        quality = filter.quality or "normal",
+                    }
+                elseif filter.value and filter.value.name then
+                    filter_data = {
+                        name = filter.value.name,
+                        quality = filter.value.quality or "normal",
+                    }
+                end
+            else
+                filter_data = {
+                    name = filter,
+                    quality = "normal",
+                }
+            end
+
+            if filter_data then
+                filters[#filters + 1] = filter_data
+            end
+        end
+    end
+
+    return filters
+end
+
+function Network:ProcessInserter(inserter)
+    if not (inserter and inserter.valid) then
+        return
+    end
+
+    local filters = self:GetInserterFilters(inserter)
+    if #filters == 0 then
+        return
+    end
+
+    local filter = filters[1]
+    if prototypes.item[filter.name] then
+        if prototypes.item[filter.name] then
+            local inserter_stack = inserter.held_stack
+            local stack_size = inserter.inserter_target_pickup_count;
+            if inserter_stack.valid_for_read then
+                local stack_quality = "normal"
+                if inserter_stack.quality then
+                    stack_quality = inserter_stack.quality.name
+                end
+                if inserter_stack.name == filter.name and stack_quality == filter.quality then
+                    local to_move = stack_size - inserter_stack.count
+                    if to_move > 0 then
+                        local removed = self.inventory:RemoveItem(filter.name, to_move, filter.quality)
+                        if removed > 0 then
+                            inserter_stack.count = inserter_stack.count + removed
+                        end
+                    end
+                else
+                    self.inventory:InsertItem(inserter_stack.name, inserter_stack.count, stack_quality)
+                    local removed = self.inventory:RemoveItem(filter.name, stack_size, filter.quality)
+                    if removed > 0 then
+                        inserter_stack.set_stack({ name = filter.name, count = removed, quality = filter.quality })
+                    end
+                end
+            else
+                local removed = self.inventory:RemoveItem(filter.name, stack_size, filter.quality)
+                if removed > 0 then
+                    inserter_stack.set_stack({ name = filter.name, count = removed, quality = filter.quality })
+                end
+            end
+        end
+    end
+end
+
+function Network:ProcessInserters(distribute_index)
+    local inserters = self:GetTypeEntities(Constants.TYPE.INSERTER, distribute_index)
+    for _, inserter in ipairs(inserters) do
+        self:ProcessInserter(inserter)
+    end
 end
 
 function Network:ProcessProductionCombinators()

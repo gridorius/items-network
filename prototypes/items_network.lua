@@ -162,6 +162,8 @@ local absorber_cable_tint = { 0.05, 1, 0.1 }
 local fluid_input_tint = { r = 0.15, g = 0.45, b = 1.0, a = 1.0 }
 local fluid_output_tint = { r = 0.1, g = 0.85, b = 0.45, a = 1.0 }
 local buffer_chest_tint = { 0.17, 0, 0.67 }
+local inserter_tint = { r = 1.0, g = 0.65, b = 0.15, a = 1.0 }
+local bulk_inserter_tint = { r = 0.95, g = 0.35, b = 0.1, a = 1.0 }
 
 local function apply_tint_to_sprites(node, tint)
   -- Walk the whole prototype table because sprite definitions can be nested deeply.
@@ -218,6 +220,11 @@ apply_tint_to_sprites(network_fluid_output_entity, fluid_output_tint)
 local network_terminal_entity = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
 local network_production_combinator_entity = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
 local network_buffer_chest_entity = table.deepcopy(data.raw["logistic-container"]["buffer-chest"])
+local base_network_inserter = data.raw["inserter"]["fast-inserter"] or data.raw["inserter"]["inserter"]
+local base_bulk_network_inserter = data.raw["inserter"]["bulk-inserter"] or data.raw["inserter"]["stack-inserter"] or base_network_inserter
+local base_bulk_network_inserter_item = data.raw["item"]["bulk-inserter"] or data.raw["item"]["stack-inserter"] or data.raw["item"]["fast-inserter"]
+local network_inserter_entity = table.deepcopy(base_network_inserter)
+local network_bulk_inserter_entity = table.deepcopy(base_bulk_network_inserter)
 
 network_terminal_entity.name = "network-terminal"
 network_terminal_entity.localised_name = { "entity-name.network-terminal" }
@@ -243,8 +250,26 @@ network_buffer_chest_entity.minable = { mining_time = 0.1, result = "network-buf
 network_buffer_chest_entity.inventory_size = 60
 network_buffer_chest_entity.trash_inventory_size = 30
 network_buffer_chest_entity.render_not_in_network_icon = false
+
+network_inserter_entity.name = "network-inserter"
+network_inserter_entity.localised_name = { "entity-name.network-inserter" }
+network_inserter_entity.localised_description = { "entity-description.network-inserter" }
+network_inserter_entity.minable = { mining_time = 0.1, result = "network-inserter" }
+network_inserter_entity.next_upgrade = nil
+network_inserter_entity.fast_replaceable_group = "inserter"
+network_inserter_entity.filter_count = 1
+
+network_bulk_inserter_entity.name = "network-bulk-inserter"
+network_bulk_inserter_entity.localised_name = { "entity-name.network-bulk-inserter" }
+network_bulk_inserter_entity.localised_description = { "entity-description.network-bulk-inserter" }
+network_bulk_inserter_entity.minable = { mining_time = 0.1, result = "network-bulk-inserter" }
+network_bulk_inserter_entity.next_upgrade = nil
+network_bulk_inserter_entity.fast_replaceable_group = "inserter"
+network_bulk_inserter_entity.filter_count = 1
 apply_tint_to_sprites(network_buffer_chest_entity, buffer_chest_tint)
 apply_tint_to_sprites(network_production_combinator_entity, buffer_chest_tint)
+apply_tint_to_sprites(network_inserter_entity, inserter_tint)
+apply_tint_to_sprites(network_bulk_inserter_entity, bulk_inserter_tint)
 
 -- Expose the new entities, items, recipes, and technology in one data batch.
 data:extend({
@@ -258,6 +283,8 @@ data:extend({
   network_terminal_entity,
   network_production_combinator_entity,
   network_buffer_chest_entity,
+  network_inserter_entity,
+  network_bulk_inserter_entity,
   network_storage_chest_entity,
   {
     type = "item-subgroup",
@@ -323,6 +350,28 @@ data:extend({
     place_result = "network-terminal",
     stack_size = 50,
   },
+
+  apply_item_tint({
+    type = "item",
+    name = "network-inserter",
+    localised_name = { "item-name.network-inserter" },
+    localised_description = { "item-description.network-inserter" },
+    subgroup = "items-network",
+    order = "bza[network-inserter]",
+    place_result = "network-inserter",
+    stack_size = 50,
+  }, network_inserter_entity, inserter_tint),
+
+  apply_item_tint({
+    type = "item",
+    name = "network-bulk-inserter",
+    localised_name = { "item-name.network-bulk-inserter" },
+    localised_description = { "item-description.network-bulk-inserter" },
+    subgroup = "items-network",
+    order = "bzb[network-bulk-inserter]",
+    place_result = "network-bulk-inserter",
+    stack_size = 50,
+  }, network_bulk_inserter_entity, bulk_inserter_tint),
 
   apply_item_tint({
     type = "item",
@@ -455,6 +504,42 @@ data:extend({
 
   {
     type = "recipe",
+    name = "network-inserter",
+    localised_name = { "recipe-name.network-inserter" },
+    subgroup = "items-network",
+    order = "bza[network-inserter]",
+    enabled = false,
+    energy_required = 2,
+    ingredients = {
+      { type = "item", name = "fast-inserter",      amount = 1 },
+      { type = "item", name = "network-cable",      amount = 1 },
+      { type = "item", name = "electronic-circuit", amount = 4 },
+    },
+    results = {
+      { type = "item", name = "network-inserter", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
+    name = "network-bulk-inserter",
+    localised_name = { "recipe-name.network-bulk-inserter" },
+    subgroup = "items-network",
+    order = "bzb[network-bulk-inserter]",
+    enabled = false,
+    energy_required = 2,
+    ingredients = {
+      { type = "item", name = base_bulk_network_inserter_item.name, amount = 1 },
+      { type = "item", name = "network-cable", amount = 2 },
+      { type = "item", name = "electronic-circuit", amount = 8 },
+    },
+    results = {
+      { type = "item", name = "network-bulk-inserter", amount = 1 },
+    },
+  },
+
+  {
+    type = "recipe",
     name = "network-server",
     localised_name = { "recipe-name.network-server" },
     subgroup = "items-network",
@@ -547,6 +632,8 @@ data:extend({
       { type = "unlock-recipe", recipe = "network-cable" },
       { type = "unlock-recipe", recipe = "network-connector" },
       { type = "unlock-recipe", recipe = "network-terminal" },
+      { type = "unlock-recipe", recipe = "network-inserter" },
+      { type = "unlock-recipe", recipe = "network-bulk-inserter" },
       { type = "unlock-recipe", recipe = "network-production-combinator" },
       { type = "unlock-recipe", recipe = "network-server" },
       { type = "unlock-recipe", recipe = "network-fluid-input" },
