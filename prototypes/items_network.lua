@@ -164,6 +164,7 @@ local fluid_output_tint = { r = 0.1, g = 0.85, b = 0.45, a = 1.0 }
 local buffer_chest_tint = { 0.17, 0, 0.67 }
 local inserter_tint = { r = 1.0, g = 0.65, b = 0.15, a = 1.0 }
 local bulk_inserter_tint = { r = 0.95, g = 0.35, b = 0.1, a = 1.0 }
+local train_stop_tint = { r = 0.15, g = 0.8, b = 0.8, a = 1.0 }
 
 local function apply_tint_to_sprites(node, tint)
   -- Walk the whole prototype table because sprite definitions can be nested deeply.
@@ -220,6 +221,7 @@ apply_tint_to_sprites(network_fluid_output_entity, fluid_output_tint)
 local network_terminal_entity = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
 local network_production_combinator_entity = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
 local network_buffer_chest_entity = table.deepcopy(data.raw["logistic-container"]["buffer-chest"])
+local network_unloading_train_stop_entity = table.deepcopy(data.raw["train-stop"]["train-stop"])
 local base_network_inserter = data.raw["inserter"]["fast-inserter"] or data.raw["inserter"]["inserter"]
 local base_bulk_network_inserter = data.raw["inserter"]["bulk-inserter"] or data.raw["inserter"]["stack-inserter"] or base_network_inserter
 local base_bulk_network_inserter_item = data.raw["item"]["bulk-inserter"] or data.raw["item"]["stack-inserter"] or data.raw["item"]["fast-inserter"]
@@ -251,6 +253,11 @@ network_buffer_chest_entity.inventory_size = 60
 network_buffer_chest_entity.trash_inventory_size = 30
 network_buffer_chest_entity.render_not_in_network_icon = false
 
+network_unloading_train_stop_entity.name = "network-unloading-train-stop"
+network_unloading_train_stop_entity.localised_name = { "entity-name.network-unloading-train-stop" }
+network_unloading_train_stop_entity.localised_description = { "entity-description.network-unloading-train-stop" }
+network_unloading_train_stop_entity.minable = { mining_time = 0.5, result = "network-unloading-train-stop" }
+
 network_inserter_entity.name = "network-inserter"
 network_inserter_entity.localised_name = { "entity-name.network-inserter" }
 network_inserter_entity.localised_description = { "entity-description.network-inserter" }
@@ -268,6 +275,7 @@ network_bulk_inserter_entity.fast_replaceable_group = "inserter"
 network_bulk_inserter_entity.filter_count = 1
 apply_tint_to_sprites(network_buffer_chest_entity, buffer_chest_tint)
 apply_tint_to_sprites(network_production_combinator_entity, buffer_chest_tint)
+apply_tint_to_sprites(network_unloading_train_stop_entity, train_stop_tint)
 apply_tint_to_sprites(network_inserter_entity, inserter_tint)
 apply_tint_to_sprites(network_bulk_inserter_entity, bulk_inserter_tint)
 
@@ -283,6 +291,7 @@ data:extend({
   network_terminal_entity,
   network_production_combinator_entity,
   network_buffer_chest_entity,
+  network_unloading_train_stop_entity,
   network_inserter_entity,
   network_bulk_inserter_entity,
   network_storage_chest_entity,
@@ -428,6 +437,17 @@ data:extend({
     place_result = "network-buffer-chest",
     stack_size = 50,
   }, network_buffer_chest_entity, buffer_chest_tint),
+
+  apply_item_tint({
+    type = "item",
+    name = "network-unloading-train-stop",
+    localised_name = { "item-name.network-unloading-train-stop" },
+    localised_description = { "item-description.network-unloading-train-stop" },
+    subgroup = "items-network",
+    order = "d[network-unloading-train-stop]",
+    place_result = "network-unloading-train-stop",
+    stack_size = 20,
+  }, network_unloading_train_stop_entity, train_stop_tint),
 
   -- Recipes are grouped under a custom subgroup to keep the crafting menu readable.
   {
@@ -612,6 +632,25 @@ data:extend({
     },
   },
 
+  {
+    type = "recipe",
+    name = "network-unloading-train-stop",
+    localised_name = { "recipe-name.network-unloading-train-stop" },
+    subgroup = "items-network",
+    order = "d[network-unloading-train-stop]",
+    enabled = false,
+    energy_required = 4,
+    ingredients = {
+      { type = "item", name = "train-stop", amount = 1 },
+      { type = "item", name = "network-cable", amount = 10 },
+      { type = "item", name = "electronic-circuit", amount = 10 },
+      { type = "item", name = "steel-plate", amount = 5 },
+    },
+    results = {
+      { type = "item", name = "network-unloading-train-stop", amount = 1 },
+    },
+  },
+
   -- One research unlocks the whole cable network toolset.
   {
     type = "technology",
@@ -682,5 +721,26 @@ data:extend({
     },
     effects = {},
     order = "c-z[network-power-conductivity]",
+  },
+  {
+    type = "technology",
+    name = "network-train-unloading",
+    localised_name = { "technology-name.network-train-unloading" },
+    localised_description = { "technology-description.network-train-unloading" },
+    icon = (data.raw["technology"]["railway"] and data.raw["technology"]["railway"].icon) or "__base__/graphics/technology/railway.png",
+    icon_size = (data.raw["technology"]["railway"] and data.raw["technology"]["railway"].icon_size) or 256,
+    prerequisites = { "railway", "items-network" },
+    unit = {
+      count = 100,
+      ingredients = {
+        { "automation-science-pack", 1 },
+        { "logistic-science-pack", 1 }
+      },
+      time = 15,
+    },
+    effects = {
+      { type = "unlock-recipe", recipe = "network-unloading-train-stop" },
+    },
+    order = "c-z[network-train-unloading]",
   },
 })

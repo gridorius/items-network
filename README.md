@@ -1,12 +1,12 @@
 # Items Network
 
-Items Network adds a local cable-based virtual logistics system for items and fluids to Factorio 2.0, with Quality support, power delivery through the network, player supply, and scripted network inserters.
+Items Network adds a local cable-based virtual logistics system for items and fluids to Factorio 2.0, with Quality support, power delivery through the network, player supply, scripted network inserters, and a network unloading train stop.
 
 > Warning: this mod is currently in beta. Functionality, balance, and interfaces may change.
 
 ## Overview
 
-The mod lets you build local item networks on cables, connect terminals and machines to them, pull items from nearby chests, transfer fluids, and return required resources back into production without long inserter chains. It also adds network inserters that can pull filtered items straight out of virtual storage.
+The mod lets you build local item networks on cables, connect terminals and machines to them, pull items from nearby chests, transfer fluids, and return required resources back into production without long inserter chains. It also adds network inserters that can pull filtered items straight out of virtual storage and a dedicated train stop for network-driven unloading.
 
 ## How It Works
 
@@ -24,12 +24,14 @@ The mod lets you build local item networks on cables, connect terminals and mach
 12. After researching `Player supply`, items requested by the player are delivered from the network on the same surface.
 13. Research `Network power conductivity` if you want network cables to conduct electricity.
 14. The production combinator lets you set items for production and their maximum amount, and outputs signals matching the shortage of those items.
+15. Research `Network train unloading` to unlock a rail stop that unloads wagons from docked trains and refuels locomotives from the network.
 
 ## Supported Network Entities
 
 - `Network terminal`: lets you inspect the network inventory and configure it.
 - `Network inserter`: pulls one filtered item type from virtual storage and feeds it into the connected target.
 - `Bulk network inserter`: same as the network inserter, but based on the bulk/stack inserter tier for larger transfers.
+- `Network unloading train stop`: unloads wagons from docked trains and refuels locomotives from the network.
 - `Network buffer chest`: requests items from virtual storage and returns trash slots back into the network.
 - `Fluid input` and `Fluid output`: move fluids between pipes and the network.
 - `Production combinator`: emits shortage signals so connected production can maintain a target stock.
@@ -42,5 +44,6 @@ Items inside the network are tracked together with their quality level. The term
 
 - Best suited for compact production districts, controlled machine feeding, and local cable-based logistics.
 - Network inserters are useful when you want direct filtered output from virtual storage into assemblers, belts, or dedicated buffer lines.
+- The network unloading train stop is intended for rail-fed outposts where stopped trains should hand cargo to the network while locomotives are kept fueled.
 - The terminal outputs circuit signals for the current amount of items stored in the network, so you can wire a machine to it and control production with enable or disable conditions.
 - The production combinator is best used to set recipes on connected machines so the network can maintain a precise target stock of items.

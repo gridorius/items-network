@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.12.0
+Date: 29.05.2026
+  Features:
+    - added network unloading train stop
+    - added dedicated railway research for the network unloading train stop
+  Changes:
+    - updated train stop descriptions to state wagon unloading and locomotive refueling behavior
+---------------------------------------------------------------------------------------------------
 Version: 1.11.0
 Date: 29.05.2026
   Features:

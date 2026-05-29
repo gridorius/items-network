@@ -3,6 +3,7 @@ local Constants = {
     CABLE_NAME = "network-cable",
     CONNECTOR_NAME = "network-connector",
     PRODUCTION_COMBINATOR_NAME = "network-production-combinator",
+    UNLOADING_TRAIN_STOP_NAME = "network-unloading-train-stop",
     NETWORK_STORAGE_CHEST_NAME = "network-storage-chest",
     HIDDEN_POWER_POLE_NAME = "network-hidden-power-pole",
     POWER_TECH_NAME = "network-power-conductivity",
@@ -45,6 +46,7 @@ local Constants = {
         CONNECTOR = "connector",
         TURRET = "turret",
         PRODUCTION_COMBINATOR = "production_combinator",
+        UNLOADING_TRAIN_STOP = "unloading_train_stop",
     },
     DISTRIBUTE_PACK_SIZE = 2,
     -- DISTRIBUTE_PACK_SIZE = 20,
@@ -63,7 +65,6 @@ local Constants = {
 }
 
 
-
 Constants.DISTRIBUTABLE_TYPES = {
     [Constants.TYPE.MACHINE] = true,
     [Constants.TYPE.CHEST] = true,
@@ -71,6 +72,7 @@ Constants.DISTRIBUTABLE_TYPES = {
     [Constants.TYPE.FLUID_OUTPUT] = true,
     [Constants.TYPE.BUFFER_CHEST] = true,
     [Constants.TYPE.INSERTER] = true,
+    [Constants.TYPE.UNLOADING_TRAIN_STOP] = true,
 }
 
 Constants.ENTITY_TYPES_MAP = {
@@ -84,6 +86,7 @@ Constants.ENTITY_TYPES_MAP = {
     [Constants.CABLE_NAME] = Constants.TYPE.CABLE,
     [Constants.CONNECTOR_NAME] = Constants.TYPE.CONNECTOR,
     [Constants.PRODUCTION_COMBINATOR_NAME] = Constants.TYPE.PRODUCTION_COMBINATOR,
+    [Constants.UNLOADING_TRAIN_STOP_NAME] = Constants.TYPE.UNLOADING_TRAIN_STOP,
 }
 
 Constants.SUPPORTED_TURRET_TYPES = {
@@ -103,6 +106,7 @@ Constants.SUPPORTED_ENTITIES = {
     [Constants.FLUID_INPUT] = true,
     [Constants.FLUID_OUTPUT] = true,
     [Constants.PRODUCTION_COMBINATOR_NAME] = true,
+    [Constants.UNLOADING_TRAIN_STOP_NAME] = true,
 }
 
 Constants.CABLE_ENTITIES = {
@@ -112,17 +116,17 @@ Constants.CABLE_ENTITIES = {
 
 Constants.SUPPORTED_ENTITY_TYPES = {}
 
- Gridorius.Dictionary:new(Constants.MACHINE_TYPES):ForEach(function(_, type)
-     table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
- end)
+Gridorius.Dictionary:new(Constants.MACHINE_TYPES):ForEach(function(_, type)
+    table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
+end)
 
- Gridorius.Dictionary:new(Constants.TURRET_TYPES):ForEach(function(_, type)
-     table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
- end)
+Gridorius.Dictionary:new(Constants.TURRET_TYPES):ForEach(function(_, type)
+    table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
+end)
 
- Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):ForEach(function(_, type)
-     table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
- end)
+Gridorius.Dictionary:new(Constants.ABSORBABLE_CHEST_TYPES):ForEach(function(_, type)
+    table.insert(Constants.SUPPORTED_ENTITY_TYPES, type)
+end)
 
 Constants.SUPPORTED_ENTITY_NAMES = {
     Constants.SERVER_NAME,
@@ -133,6 +137,7 @@ Constants.SUPPORTED_ENTITY_NAMES = {
     Constants.FLUID_INPUT,
     Constants.FLUID_OUTPUT,
     Constants.PRODUCTION_COMBINATOR_NAME,
+    Constants.UNLOADING_TRAIN_STOP_NAME,
 }
 
 return Constants

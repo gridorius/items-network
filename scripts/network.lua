@@ -374,6 +374,16 @@ function Network:OnTick()
     self:ProcessMachinesFluids(distribute_index)
     self:ProcessInserters(distribute_index)
     self:ProcessBufferChests(distribute_index)
+    self:ProcessUnloadTrainStops(distribute_index)
+end
+
+function Network:ProcessUnloadTrainStops(distribute_index)
+    local train_stops = self:GetTypeEntities(Constants.TYPE.UNLOADING_TRAIN_STOP, distribute_index)
+    for _, train_stop in ipairs(train_stops) do
+        if train_stop and train_stop.valid then
+            self.inventory:ProcessUnloadingTrainStop(train_stop, self.storage.use_fuels)
+        end
+    end
 end
 
 function Network:GetInserterFilters(inserter)

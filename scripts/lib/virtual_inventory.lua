@@ -405,6 +405,37 @@ function VirtualInventory:MoveToInventory(item, count, inventory)
     return 0
 end
 
+function VirtualInventory:ProcessUnloadingTrainStop(train_stop, use_fuels)
+    local trains = train_stop.get_train_stop_trains()
+
+    for _, train in pairs(trains) do
+        if train.station and train.station == train_stop and train.state == defines.train_state.wait_station then
+            for _, carriage in pairs(train.carriages) do
+                if carriage.valid then
+                    if carriage.type == "cargo-wagon" then
+                        self:CollectInventory(carriage.get_inventory(defines.inventory.cargo_wagon))
+                    elseif carriage.type == "fluid-wagon" then
+                        local content = carriage.get_fluid(1)
+                        if content and content.amount > 0 then
+                            self:InsertFluid(content.name, content.amount, content.temperature)
+                            carriage.set_fluid(1, nil)
+                        end
+                    elseif carriage.type == 'locomotive' then
+                        local fuel_inventory = carriage.get_fuel_inventory()
+                        if fuel_inventory and not fuel_inventory.is_full() then
+                            local fuel_names = Gridorius.GetSortedKeys(use_fuels)
+                            for i = 1, #fuel_names do
+                                self:MoveToInventory({ name = fuel_names[i] }, 40, fuel_inventory)
+                            end
+                        end
+                    end
+                end
+            end
+            break
+        end
+    end
+end
+
 function VirtualInventory:ProcessLab(lab)
     if not (lab and lab.valid) then
         return
