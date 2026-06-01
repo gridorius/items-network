@@ -579,7 +579,7 @@ function Network:FillFluidOutputs(distribute_index)
                 local temperature = pipe_data.temperature == "default" and
                     self.inventory.fluids[pipe_data.fluid_name].default_temperature or pipe_data.temperature
 
-                local inserted = Gridorius.insert_fluid(pipe.fluidbox,
+                local inserted = Gridorius.insert_fluid_segments(pipe.fluidbox,
                     { name = pipe_data.fluid_name, temperature = temperature }, 1,
                     inventory_amount)
                 if inserted > 0 then
