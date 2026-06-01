@@ -248,10 +248,32 @@ network_production_combinator_entity.minable = { mining_time = 0.1, result = "ne
 network_buffer_chest_entity.name = "network-buffer-chest"
 network_buffer_chest_entity.localised_name = { "entity-name.network-buffer-chest" }
 network_buffer_chest_entity.localised_description = { "entity-description.network-buffer-chest" }
+network_buffer_chest_entity.icon = "__items-network__/graphics/icons/buffer-chest.png"
+network_buffer_chest_entity.icon_size = 64
+network_buffer_chest_entity.icon_mipmaps = 4
 network_buffer_chest_entity.minable = { mining_time = 0.1, result = "network-buffer-chest" }
 network_buffer_chest_entity.inventory_size = 60
 network_buffer_chest_entity.trash_inventory_size = 30
 network_buffer_chest_entity.render_not_in_network_icon = false
+network_buffer_chest_entity.picture = {
+  filename = "__items-network__/graphics/entity/buffer-chest.png",
+  width = 66,
+  height = 74,
+  x = 0,
+  y = 0,
+  scale = 0.5,
+  shift = util.by_pixel(0, -2),
+}
+network_buffer_chest_entity.animation = {
+  filename = "__items-network__/graphics/entity/buffer-chest.png",
+  width = 66,
+  height = 74,
+  frame_count = 7,
+  line_length = 7,
+  scale = 0.5,
+  shift = util.by_pixel(0, -2),
+  animation_speed = 0.25,
+}
 
 network_unloading_train_stop_entity.name = "network-unloading-train-stop"
 network_unloading_train_stop_entity.localised_name = { "entity-name.network-unloading-train-stop" }

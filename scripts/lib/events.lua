@@ -29,7 +29,7 @@ function Events:on_event(name, event)
     for i = 1, #handler_ids do
         local handler_id = handler_ids[i]
         local handler_data = self.handlers[handler_id]
-        if handler_data.events[name] then
+        if handler_data and handler_data.events[name] then
             handler_data.events[name](event, handler_id)
             if handler_data.single then
                 self.handlers[handler_id] = nil
@@ -44,9 +44,11 @@ function Events:on_nth_tick_event(tick, event)
         for i = 1, #handler_ids do
             local id = handler_ids[i]
             local handler_data = self.nth_tick_handlers[tick][id]
-            handler_data.handler(event, id)
-            if handler_data.single then
-                self.nth_tick_handlers[tick][id] = nil
+            if handler_data then
+                handler_data.handler(event, id)
+                if handler_data.single then
+                    self.nth_tick_handlers[tick][id] = nil
+                end
             end
         end
     end

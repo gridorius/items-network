@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.12.4
+Date: 01.06.2026
+  Bugfixes:
+    - added check in events
+    - fixed disappearance of liquids during withdrawal
+    - added local sprites for the online buffer chest in hopes of fixing incompatibility issues
+---------------------------------------------------------------------------------------------------
 Version: 1.12.1
 Date: 29.05.2026
   Bugfixes:
