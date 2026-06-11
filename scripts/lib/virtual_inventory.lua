@@ -229,6 +229,9 @@ end
 
 function VirtualInventory:UpdateItemSignal(name, count, quality)
     local signal_name = name .. "_" .. quality
+    if(count >= 2147483600) then
+        count = 2147483600
+    end
     if self.signals[signal_name] then
         self.signals[signal_name].min = count
     else
@@ -245,6 +248,9 @@ end
 
 function VirtualInventory:UpdateFluidSignal(name)
     local total = self:GetTotalFluid(name)
+     if(total >= 2147483600) then
+        total = 2147483600
+    end
     if self.signals[name] then
         self.signals[name].min = total
     else
@@ -537,6 +543,10 @@ function VirtualInventory:ProcessMachineItems(machine, use_fuels)
             return
         end
 
+        if not machine.active then
+            return
+        end
+
         local input_inventory = machine.get_inventory(defines.inventory.crafter_input)
         local output_inventory = machine.get_inventory(defines.inventory.crafter_output)
         local dump_inventory = machine.get_inventory(defines.inventory.assembling_machine_dump)
@@ -546,7 +556,7 @@ function VirtualInventory:ProcessMachineItems(machine, use_fuels)
         recipe_quality = recipe_quality and recipe_quality.name or "normal"
 
         -- handle recipe
-        if recipe and machine.active and input_inventory then
+        if recipe and input_inventory then
             for _, ingredient in ipairs(recipe.ingredients) do
                 if ingredient.type == "item" then
                     local ingredient_quality = recipe_quality
@@ -568,7 +578,7 @@ function VirtualInventory:ProcessMachineItems(machine, use_fuels)
         end
 
         -- handle fuels
-        if machine.active and burner and fuel_inventory and fuel_inventory.is_empty() and burner.remaining_burning_fuel < 100 then
+        if burner and fuel_inventory and fuel_inventory.is_empty() and burner.remaining_burning_fuel < 100 then
             local fuel_names = Gridorius.GetSortedKeys(use_fuels)
             for i = 1, #fuel_names do
                 self:MoveToInventory({ name = fuel_names[i] }, 2, fuel_inventory)

@@ -68,6 +68,9 @@ function Network:RenderRadius(radius, color)
 end
 
 function Network:Destroy()
+    for _, render in pairs(self.renders) do
+        render.destroy()
+    end
     Gridorius.Events:Remove(self.selected_handler_id)
     storage.networks[self.id] = nil
     self.inventory:Destroy()

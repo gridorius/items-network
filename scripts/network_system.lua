@@ -15,6 +15,8 @@ function NetworkSystem:new()
     storage.power_poles = storage.power_poles or {}
     storage.next_network_id = storage.next_network_id or 1
 
+    self.is_host_or_singleplayer = not game.is_multiplayer() or #game.players == 1;
+
     storage.cables = storage.cables or {}
     storage.cable_systems = storage.cable_systems or {}
     self.cables = storage.cables
@@ -25,12 +27,16 @@ function NetworkSystem:new()
     rendering.clear("items-network")
     -- todo: old compatible
     self:ForceSetServersMinable()
-    self:ReconnectConnectors()
-    self:BuilCableSystems()
+    if (self.is_host_or_singleplayer) then
+        self:ReconnectConnectors()
+        self:BuilCableSystems()
+    end
     self:InitNetworks()
-    self:RebuildEnergyInterfaces()
-    self:RebuildPowerPoles()
-    self:RebuildAllSystems()
+    if (self.is_host_or_singleplayer) then
+        self:RebuildEnergyInterfaces()
+        self:RebuildPowerPoles()
+        self:RebuildAllSystems()
+    end
     Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
     Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
     Gridorius.Events:On(defines.events.on_research_finished, function(event)
@@ -93,9 +99,6 @@ function NetworkSystem:BuilCableSystems()
         for _, cable in pairs(cables) do
             if not self.cables[cable.unit_number] then
                 self:HandleNewCable(cable)
-                -- self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
-                -- else
-                -- self:RenderDebugCableSystem(cable, self.cables[cable.unit_number].system_id)
             end
         end
     end
