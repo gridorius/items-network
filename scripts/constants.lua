@@ -64,7 +64,6 @@ local Constants = {
     }
 }
 
-
 Constants.DISTRIBUTABLE_TYPES = {
     [Constants.TYPE.MACHINE] = true,
     [Constants.TYPE.CHEST] = true,
@@ -107,6 +106,11 @@ Constants.SUPPORTED_ENTITIES = {
     [Constants.FLUID_OUTPUT] = true,
     [Constants.PRODUCTION_COMBINATOR_NAME] = true,
     [Constants.UNLOADING_TRAIN_STOP_NAME] = true,
+}
+
+Constants.BLUEPRINT_TAG_ENTITIES = {
+    [Constants.FLUID_OUTPUT] = true,
+    [Constants.PRODUCTION_COMBINATOR_NAME] = true,
 }
 
 Constants.CABLE_ENTITIES = {

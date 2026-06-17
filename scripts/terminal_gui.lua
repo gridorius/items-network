@@ -291,8 +291,8 @@ function TerminalGui.render_fluid_selector(network, player, table)
 	if not pipe_data then return end
 
 	for fluid_name, temperatures in pairs(network.inventory.fluids) do
-		for temperature, _ in pairs(temperatures) do
-			if temperature ~= "default_temperature" then
+		for temperature, amount in pairs(temperatures) do
+			if temperature ~= "default_temperature" and amount > 0 then
 				local name = fluid_name
 				local is_default = temperature == "default"
 				local tooltip = { "fluid-name." .. fluid_name }
@@ -416,7 +416,7 @@ Gridorius.Events:OnTaggedClick(function(tags, event)
 			fluid_name = fluid_name,
 			temperature = temperature,
 		})
-		local pipe_table = player.gui.screen.fluid_output_frame.fluids_table
+		local pipe_table = player.gui.screen.fluid_output_frame.fluids_scroll.fluids_table
 		TerminalGui.render_fluid_selector(current_network, player, pipe_table)
 	elseif tags.type == 'delete_limit_item' then
 		local index = tags.index
@@ -692,14 +692,20 @@ function TerminalGui.BindInterfaces()
 	local pipe_interface =
 		Gui:CreateDefaultFrame("fluid_output_frame", { "gui.items-network-fluid-output-window-title" })
 		:AppendChildrens(
-			Gui:CreateTable("fluids_table", 10)
-			:SetClasses("spacing_5")
-			:AfterCreate(function(table, player)
-				local network = Gridorius.state:get_player(player.index, "network")
-				if network then
-					TerminalGui.render_fluid_selector(network, player, table)
-				end
+			Gui:CreateScroll("fluids_scroll")
+			:AfterCreate(function(scroll)
+				scroll.style.maximal_height = 400
 			end)
+			:AppendChild(
+				Gui:CreateTable("fluids_table", 10)
+				:SetClasses("spacing_5")
+				:AfterCreate(function(table, player)
+					local network = Gridorius.state:get_player(player.index, "network")
+					if network then
+						TerminalGui.render_fluid_selector(network, player, table)
+					end
+				end)
+			)
 		)
 
 	terminal_interface:OnClose(function(player)

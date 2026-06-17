@@ -1,6 +1,6 @@
 {
   "name": "items-network",
-  "version": "1.12.6",
+  "version": "1.12.7",
   "title": "Items Network [BETA]",
   "description": "Digital storage of items with support for logical signals, input/output of items and liquids, distribution of items from the network to assemblers, furnaces, laboratories, and output of results back to the storage; the number of items produced can be controlled through logical signals; the network terminal issues signals for all contents",
   "author": "Gridorius",

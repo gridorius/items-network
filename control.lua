@@ -14,7 +14,8 @@ Gridorius.Events:UseEvents(
     defines.events.on_gui_text_changed,
     defines.events.on_string_translated,
     defines.events.on_player_joined_game,
-    defines.events.on_selected_entity_changed
+    defines.events.on_selected_entity_changed,
+    defines.events.on_player_setup_blueprint
 );
 
 Gridorius.Events:UseEvents(table.unpack(Constants.BUILD_EVENTS))

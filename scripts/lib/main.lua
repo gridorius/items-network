@@ -98,7 +98,7 @@ end
 function Gridorius.init()
     storage.metadata = storage.metadata or {}
     Gridorius.metadata = storage.metadata
-    Gridorius.FixMetadata()
+    -- Gridorius.FixMetadata()
 end
 
 function Gridorius.SetMetadata(entity, metadata)

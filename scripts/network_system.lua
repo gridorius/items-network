@@ -37,6 +37,8 @@ function NetworkSystem:new()
         self:RebuildPowerPoles()
         self:RebuildAllSystems()
     end
+    
+    Gridorius.Events:On(defines.events.on_player_setup_blueprint, function(event) self:HandleBlueprintSetup(event) end)
     Gridorius.Events:On(Constants.BUILD_EVENTS, function(event) self:HandleBuildEntity(event) end)
     Gridorius.Events:On(Constants.MINING_EVENTS, function(event) self:HandleMineEntity(event) end)
     Gridorius.Events:On(defines.events.on_research_finished, function(event)
@@ -587,7 +589,27 @@ function NetworkSystem:DestroyServer(entity)
     storage.servers[entity.unit_number] = nil
 end
 
+function NetworkSystem:IsBlueprintTagEntity(entity)
+    return Constants.BLUEPRINT_TAG_ENTITIES[entity.name] or false
+end
+
 --#region Event Handlers
+
+function NetworkSystem:HandleBlueprintSetup(event)
+    local player = game.players[event.player_index]
+    local cursor = player.cursor_stack
+    
+    if cursor and cursor.valid_for_read and cursor.is_blueprint then
+        local entities = cursor.get_blueprint_entities()
+        local mapping = event.mapping.get();
+        if not entities then return end
+        for index, entity in pairs(mapping) do
+            if(self:IsBlueprintTagEntity(entity)) then
+                cursor.set_blueprint_entity_tag(index, "meta", Gridorius.GetMetadata(entity, {}))
+            end
+        end
+    end
+end
 
 function NetworkSystem:HandleBuildEntity(event)
     local entity = get_entity_from_event(event)
@@ -609,6 +631,13 @@ function NetworkSystem:HandleBuildEntity(event)
 
         local new_network_id = self:CreateNetwork(entity)
         game.print({ "message.items-network-built-network", new_network_id })
+    end
+
+    if(self:IsBlueprintTagEntity(entity)) then
+        local metadata = event.tags and event.tags.meta
+        if metadata then
+            Gridorius.SetMetadata(entity, metadata)
+        end
     end
 
     local connected_entity = nil
