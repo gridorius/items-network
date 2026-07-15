@@ -80,7 +80,8 @@ network_storage_chest_entity.localised_name = { "entity-name.network-storage-che
 network_storage_chest_entity.localised_description = { "entity-description.network-storage-chest" }
 network_storage_chest_entity.inventory_type = "with_custom_stack_size"
 network_storage_chest_entity.inventory_properties = {
-  stack_size_min = 4000000000,
+  stack_size_min = 1000000000,
+  stack_size_max = 1000000000,
 }
 network_storage_chest_entity.minable = { mining_time = 2, result = "steel-chest" }
 network_storage_chest_entity.inventory_size = 65000
@@ -264,7 +265,7 @@ network_buffer_chest_entity.picture = {
   scale = 0.5,
   shift = util.by_pixel(0, -2),
 }
-network_buffer_chest_entity.animation = {
+network_buffer_chest_entity.robot_door.animation = {
   filename = "__items-network__/graphics/entity/buffer-chest.png",
   width = 66,
   height = 74,
@@ -332,7 +333,7 @@ data:extend({
     icon_size = network_server_entity.icon_size,
     subgroup = "items-network",
     order = "zz[network-server-cycle]",
-    category = "crafting",
+    categories = { "crafting" },
     enabled = true,
     hidden = true,
     hide_from_player_crafting = true,
