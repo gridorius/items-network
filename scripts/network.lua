@@ -565,8 +565,8 @@ function Network:FillFluidOutputs(distribute_index)
                 local inventory_amount = self.inventory:GetFluidAmount(pipe_data.fluid_name, pipe_data.temperature)
 
                 local need_collect = false
-                for i = 1, #pipe.fluidbox do
-                    local fluid = pipe.fluidbox[i]
+                for i = 1, pipe.fluids_count do
+                    local fluid = pipe.get_fluid(i)
                     local needed_temperature = pipe_data.temperature == "default" and
                         self.inventory.fluids[pipe_data.fluid_name].default_temperature or pipe_data.temperature
                     if fluid and fluid.name and (fluid.name ~= pipe_data.fluid_name or fluid.temperature ~= needed_temperature) then
@@ -582,7 +582,7 @@ function Network:FillFluidOutputs(distribute_index)
                 local temperature = pipe_data.temperature == "default" and
                     self.inventory.fluids[pipe_data.fluid_name].default_temperature or pipe_data.temperature
 
-                local inserted = Gridorius.insert_fluid_segments(pipe.fluidbox,
+                local inserted = Gridorius.insert_fluid_segments(pipe,
                     { name = pipe_data.fluid_name, temperature = temperature }, 1,
                     inventory_amount)
                 if inserted > 0 then

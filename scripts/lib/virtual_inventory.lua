@@ -180,11 +180,10 @@ end
 
 function VirtualInventory:CollectFluidbox(entity)
     if entity and entity.valid then
-        for i = 1, #entity.fluidbox do
-            local fluid = entity.fluidbox[i]
+        for i = 1, entity.fluids_count do
+            local fluid = entity.clear_fluid(i)
             if fluid and fluid.name and fluid.amount > 0 then
                 self:InsertFluid(fluid.name, fluid.amount, fluid.temperature)
-                entity.fluidbox[i] = nil
             end
         end
     end
@@ -421,10 +420,9 @@ function VirtualInventory:ProcessUnloadingTrainStop(train_stop, use_fuels)
                     if carriage.type == "cargo-wagon" then
                         self:CollectInventory(carriage.get_inventory(defines.inventory.cargo_wagon))
                     elseif carriage.type == "fluid-wagon" then
-                        local content = carriage.get_fluid(1)
+                        local content = carriage.clear_fluid(1)
                         if content and content.amount > 0 then
                             self:InsertFluid(content.name, content.amount, content.temperature)
-                            carriage.set_fluid(1, nil)
                         end
                     elseif carriage.type == 'locomotive' then
                         local fuel_inventory = carriage.get_fuel_inventory()
@@ -493,9 +491,7 @@ function VirtualInventory:ProcessMachineFluids(machine)
     if machine.type == "lab" then
         return
     end
-    local fluidbox = machine.fluidbox
-
-    if not (fluidbox and machine.valid) then
+    if machine.fluids_count == 0 then
         return
     end
 
@@ -504,12 +500,12 @@ function VirtualInventory:ProcessMachineFluids(machine)
     if recipe and machine.active then
         local insert_index = 1
         for _, ingredient in ipairs(recipe.ingredients) do
-            if ingredient.type == "fluid" and fluidbox then
+            if ingredient.type == "fluid" then
                 local fluid_name = ingredient.name
                 local fluid_temperature = ingredient.temperature
                 local inventory_amount = self:GetFluidAmount(fluid_name, fluid_temperature)
                 local amount = math.min(inventory_amount, self.insert_fluid_per_operation)
-                local inserted = Gridorius.insert_fluid(fluidbox,
+                local inserted = Gridorius.insert_fluid(machine,
                     { name = fluid_name, amount = amount, temperature = fluid_temperature }, insert_index, amount)
                 if inserted > 0 then
                     self:RemoveFluid(fluid_name, inserted, fluid_temperature)
@@ -520,15 +516,16 @@ function VirtualInventory:ProcessMachineFluids(machine)
     end
 
     -- collect fluid products
-    if recipe and fluidbox then
+    if recipe then
         for _, product in ipairs(recipe.products) do
             if product.type == "fluid" then
-                for i = 1, #fluidbox do
-                    local fluid = fluidbox[i]
+                for i = 1, machine.fluids_count do
+                    local fluid = machine.get_fluid(i)
                     if fluid and fluid.name and fluid.name == product.name then
-                        local amount = fluid.amount
-                        self:InsertFluid(product.name, amount, product.temperature)
-                        fluidbox[i] = nil
+                        local collected = machine.clear_fluid(i)
+                        if collected and collected.amount > 0 then
+                            self:InsertFluid(collected.name, collected.amount, collected.temperature)
+                        end
                     end
                 end
             end

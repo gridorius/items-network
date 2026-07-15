@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 1.12.9
+Date: 15.07.2026
+  Bugfixes:
+    - migrated the server minable flag to the writable Factorio 2.1 LuaEntity property
+---------------------------------------------------------------------------------------------------
+Version: 1.12.8
+Date: 15.07.2026
+  Changes:
+    - migrated runtime fluid handling to the Factorio 2.1 LuaEntity fluid API
+    - migrated recipe category definitions to the Factorio 2.1 format
+    - updated custom inventory limits for Factorio 2.1 prototype validation
+  Bugfixes:
+    - fixed crashes while processing fluid inputs, outputs, machines, and fluid wagons in Factorio 2.1
+---------------------------------------------------------------------------------------------------
 Version: 1.12.7
 Date: 17.06.2026
   Bugfixes:

@@ -1,7 +1,7 @@
 # Items Network
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/yqbfZegmm)
 
-Items Network adds a local cable-based virtual logistics system for items and fluids to Factorio 2.0, with Quality support, power delivery through the network, player supply, scripted network inserters, and a network unloading train stop.
+Items Network adds a local cable-based virtual logistics system for items and fluids to Factorio 2.1, with Quality support, power delivery through the network, player supply, scripted network inserters, and a network unloading train stop.
 
 
 > Warning: this mod is currently in beta. Functionality, balance, and interfaces may change.

@@ -247,7 +247,7 @@ function NetworkSystem:ForceSetServersMinable()
     for _, surface in pairs(game.surfaces) do
         for _, server in pairs(surface.find_entities_filtered { name = Constants.SERVER_NAME }) do
             if server and server.valid then
-                server.minable = true
+                server.minable_flag = true
             end
         end
     end

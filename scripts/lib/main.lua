@@ -23,76 +23,46 @@ function Gridorius.GetTranslation(player_index, prototype_name)
     return player_translation or prototype_name
 end
 
-Gridorius.insert_fluid = function(fluidbox, fluid, index, max_insert)
-    local current_fluid = fluidbox[index]
-    local capacity = fluidbox.get_capacity(index)
-    local to_insert = 0
-    local new_amount = 0
-    if current_fluid then
-        to_insert = math.min(max_insert, capacity - (current_fluid.amount or 0))
-        new_amount = current_fluid.amount + to_insert
-    else
-        to_insert = math.min(max_insert, capacity)
-        new_amount = to_insert
+Gridorius.insert_fluid = function(entity, fluid, index, max_insert)
+    if max_insert <= 0 or index > entity.fluids_count then
+        return 0
     end
 
-    if to_insert > 0 then
-        fluidbox[index] = {
-            name = fluid.name,
-            amount = new_amount,
-            temperature = fluid.temperature
-        }
-        return to_insert
+    local current_fluid = entity.get_fluid(index)
+    if current_fluid and
+        (current_fluid.name ~= fluid.name or
+            (fluid.temperature and current_fluid.temperature ~= fluid.temperature)) then
+        return 0
     end
-    return 0
+
+    return entity.add_fluid(index, {
+        name = fluid.name,
+        amount = max_insert,
+        temperature = fluid.temperature
+    })
 end
 
-Gridorius.insert_fluid_segments = function(fluidbox, fluid, index, max_insert)
-    if max_insert <= 0 then
+Gridorius.insert_fluid_segments = function(entity, fluid, index, max_insert)
+    if max_insert <= 0 or index > entity.fluids_count then
         return 0
     end
 
-    local capacity = fluidbox.get_capacity(index)
-    local segment_contents_before = fluidbox.get_fluid_segment_contents(index)
-    local total_before = 0
-    local to_insert = 0
-    local new_amount = 0
-    if segment_contents_before and segment_contents_before[fluid.name] then
-        total_before = segment_contents_before[fluid.name]
-    else
-        local fluid_before = fluidbox[index]
-        if fluid_before and fluid_before.name == fluid.name and fluid_before.temperature == fluid.temperature then
-            total_before = fluid_before.amount or 0
-        end
+    if not entity.has_fluid_segment(index) then
+        return Gridorius.insert_fluid(entity, fluid, index, max_insert)
     end
 
-    if total_before == capacity then
+    local current_fluid = entity.get_fluid_segment_fluid(index)
+    if current_fluid and
+        (current_fluid.name ~= fluid.name or
+            (fluid.temperature and current_fluid.temperature ~= fluid.temperature)) then
         return 0
     end
 
-    local current_fluid = fluidbox[index]
-
-    if current_fluid then
-        to_insert = math.min(max_insert, capacity - total_before)
-        new_amount = total_before + to_insert
-    else
-        to_insert = math.min(max_insert, capacity)
-        new_amount = to_insert
-    end
-
-    if to_insert > 0 then
-        fluidbox[index] = {
-            name = fluid.name,
-            amount = new_amount,
-            temperature = fluid.temperature
-        }
-    end
-
-    local segment_contents_after = fluidbox.get_fluid_segment_contents(index)
-    if segment_contents_after and segment_contents_after[fluid.name] then
-        return math.max(0, segment_contents_after[fluid.name] - total_before)
-    end
-    return 0
+    return entity.add_fluid_segment_fluid(index, {
+        name = fluid.name,
+        amount = max_insert,
+        temperature = fluid.temperature
+    })
 end
 
 function Gridorius.init()
